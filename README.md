@@ -1,7 +1,8 @@
 # WC26 // PREDICTION ARENA ⚽
 
 Friends prediction game for the 2026 FIFA World Cup. No money, no accounts —
-pick `1 / X / 2` before kickoff, score points when you're right, top the board.
+voting opens each matchday, pick `1 / X / 2` before kickoff, score points when
+you're right, top the board.
 
 **Live:** https://jeszuszkoma.github.io/wc26/
 

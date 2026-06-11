@@ -186,6 +186,13 @@ nav { display: flex; gap: 6px; margin-top: 10px; }
   box-shadow: 0 0 8px rgba(255, 45, 120, 0.6);
 }
 
+.vote-locked {
+  margin-top: 10px; padding: 8px 4px; text-align: center;
+  font-family: 'Orbitron', sans-serif; font-size: 0.68rem; font-weight: 600;
+  letter-spacing: 0.18em; color: var(--text-dim);
+  border: 1px dashed var(--line-soft); clip-path: var(--clip);
+}
+
 .picks-line { margin-top: 8px; font-size: 0.75rem; color: var(--text-dim); display: flex; flex-wrap: wrap; gap: 6px; }
 .pick-tag { border: 1px solid var(--line-soft); padding: 1px 7px; letter-spacing: 0.04em; }
 

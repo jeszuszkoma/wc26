@@ -2,7 +2,7 @@ import { CONFIG } from './config.js';
 import { flag } from './teams.js';
 import {
   loadSchedule, refreshScores, kickoff, status, votingOpen, placeholder,
-  isKnockout, goals, outcome, standings, KO_ROUNDS,
+  isMatchday, isKnockout, goals, outcome, standings, KO_ROUNDS,
 } from './data.js';
 import {
   online, playerName, setPlayerName, fetchVotes, castVote, playersFrom,
@@ -151,6 +151,13 @@ function matchCard(m) {
     : st === 'finished' && g ? '<span class="badge ft">FT</span>'
     : `<span class="badge num">M${m.num}</span>`;
 
+  // Future matchdays: voting not open yet — show when it unlocks instead of buttons.
+  const future = kickoff(m) > state.now && !isMatchday(m, state.now);
+  const voteArea = future
+    ? `<div class="vote-locked">⏳ VOTING OPENS ${kickoff(m)
+        .toLocaleDateString([], { month: 'short', day: 'numeric' }).toUpperCase()}</div>`
+    : `<div class="vote-row">${voteBtns}</div>${reveal}`;
+
   return `
   <article class="match ${st}" id="m${m.num}">
     <div class="match-meta">
@@ -162,8 +169,7 @@ function matchCard(m) {
       ${score}
       <div class="team away"><span class="tname">${esc(teamLabel(m.team2))}</span><span class="flag">${flag(m.team2)}</span></div>
     </div>
-    <div class="vote-row">${voteBtns}</div>
-    ${reveal}
+    ${voteArea}
   </article>`;
 }
 

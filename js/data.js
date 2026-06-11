@@ -39,8 +39,14 @@ export function placeholder(match) {
   return SLOT.test(match.team1) || SLOT.test(match.team2);
 }
 
+// Same calendar day as kickoff, in the viewer's timezone.
+export function isMatchday(match, now = new Date()) {
+  return kickoff(match).toDateString() === now.toDateString();
+}
+
+// Votes only open on matchday itself, until kickoff.
 export function votingOpen(match, now = new Date()) {
-  return now < kickoff(match) && !placeholder(match);
+  return isMatchday(match, now) && now < kickoff(match) && !placeholder(match);
 }
 
 // Total goals per side incl. extra time (pens excluded — shown separately).
