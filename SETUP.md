@@ -39,7 +39,8 @@ Without this, scores still arrive via openfootball (~once a day).
 
 ## Game rules (current)
 
-- Voting opens on matchday only — future matches show when they unlock.
+- Voting opens at local midnight on matchday, or 12 h before kickoff for
+  early-morning games — future matches show when they unlock.
 - Pick `1` / `X` / `2` before kickoff (knockout: winner only). One pick per match, changeable until kickoff.
 - Friends' picks are hidden until the match locks, then revealed on the card.
 - Correct result = 3 points. Leaderboard under **Board**.

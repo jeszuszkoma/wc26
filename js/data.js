@@ -39,14 +39,20 @@ export function placeholder(match) {
   return SLOT.test(match.team1) || SLOT.test(match.team2);
 }
 
-// Same calendar day as kickoff, in the viewer's timezone.
-export function isMatchday(match, now = new Date()) {
-  return kickoff(match).toDateString() === now.toDateString();
+const EARLY_OPEN_MS = 12 * 3_600_000;
+
+// Voting unlocks at local midnight of matchday, or 12h before kickoff for
+// early-morning matches — whichever comes first.
+export function unlockTime(match) {
+  const ko = kickoff(match);
+  const midnight = new Date(ko);
+  midnight.setHours(0, 0, 0, 0);
+  const early = new Date(ko.getTime() - EARLY_OPEN_MS);
+  return early < midnight ? early : midnight;
 }
 
-// Votes only open on matchday itself, until kickoff.
 export function votingOpen(match, now = new Date()) {
-  return isMatchday(match, now) && now < kickoff(match) && !placeholder(match);
+  return now >= unlockTime(match) && now < kickoff(match) && !placeholder(match);
 }
 
 // Total goals per side incl. extra time (pens excluded — shown separately).

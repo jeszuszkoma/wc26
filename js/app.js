@@ -2,7 +2,7 @@ import { CONFIG } from './config.js';
 import { flag } from './teams.js';
 import {
   loadSchedule, refreshScores, kickoff, status, votingOpen, placeholder,
-  isMatchday, isKnockout, goals, outcome, standings, KO_ROUNDS,
+  unlockTime, isKnockout, goals, outcome, standings, KO_ROUNDS,
 } from './data.js';
 import {
   online, playerName, setPlayerName, fetchVotes, castVote, playersFrom,
@@ -152,11 +152,14 @@ function matchCard(m) {
     : st === 'finished' && g ? '<span class="badge ft">FT</span>'
     : `<span class="badge num">M${m.num}</span>`;
 
-  // Future matchdays: voting not open yet — show when it unlocks instead of buttons.
-  const future = kickoff(m) > state.now && !isMatchday(m, state.now);
+  // Voting not unlocked yet — show when it opens instead of buttons.
+  const unlock = unlockTime(m);
+  const future = state.now < unlock;
+  const unlockLabel = unlock.toDateString() === state.now.toDateString()
+    ? `TODAY ${unlock.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+    : unlock.toLocaleDateString([], { month: 'short', day: 'numeric' }).toUpperCase();
   const voteArea = future
-    ? `<div class="vote-locked">⏳ VOTING OPENS ${kickoff(m)
-        .toLocaleDateString([], { month: 'short', day: 'numeric' }).toUpperCase()}</div>`
+    ? `<div class="vote-locked">⏳ VOTING OPENS ${unlockLabel}</div>`
     : `<div class="vote-row">${voteBtns}</div>${reveal}`;
 
   return `
