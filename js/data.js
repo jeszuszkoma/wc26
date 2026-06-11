@@ -25,6 +25,7 @@ export function isKnockout(match) {
 
 // 'scheduled' | 'live' | 'finished'
 export function status(match, now = new Date()) {
+  if (match._live) return 'live'; // live feed says in play — score present but not final
   if (match.score?.ft) return 'finished';
   const ko = kickoff(match);
   const liveWindowMs = isKnockout(match) ? 150 * 60_000 : 120 * 60_000; // ET+pens headroom
@@ -92,9 +93,18 @@ export async function loadSchedule() {
   return assignNums(local.matches);
 }
 
+const ESPN_URL =
+  'https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard';
+
+// yesterday..tomorrow as "YYYYMMDD-YYYYMMDD" — catches venue-timezone drift.
+function espnDates(now = new Date()) {
+  const fmt = d => d.toISOString().slice(0, 10).replaceAll('-', '');
+  return `${fmt(new Date(now - 86_400_000))}-${fmt(new Date(+now + 86_400_000))}`;
+}
+
 export async function refreshScores(matches) {
   let updated = false;
-  // Preferred: live proxy (football-data.org via Supabase edge function).
+  // Optional proxy (football-data.org via Supabase edge function).
   if (CONFIG.SCORES_URL) {
     try {
       const fd = await fetch(CONFIG.SCORES_URL).then(r => r.json());
@@ -103,12 +113,19 @@ export async function refreshScores(matches) {
       console.warn('scores proxy failed, falling back to openfootball', e);
     }
   }
-  // Always also try openfootball — covers proxy gaps, costs one cached fetch.
+  // openfootball — full-tournament history, updated ~daily upstream.
   try {
     const fresh = await fetch(OPENFOOTBALL_URL, { cache: 'no-cache' }).then(r => r.json());
     updated = mergeOpenfootball(matches, fresh.matches) || updated;
   } catch (e) {
     console.warn('openfootball refresh failed', e);
+  }
+  // ESPN — live scores around today; merged last so the freshest source wins.
+  try {
+    const espn = await fetch(`${ESPN_URL}?dates=${espnDates()}`).then(r => r.json());
+    updated = mergeEspn(matches, espn) || updated;
+  } catch (e) {
+    console.warn('espn scores failed', e);
   }
   return updated;
 }
@@ -167,6 +184,43 @@ function mergeFootballData(matches, fd) {
         delete m._live;
       }
     }
+  }
+  return changed;
+}
+
+// ESPN scoreboard payload -> our match list. Display-only merge: writes
+// score + _live flag on in-memory matches, never touches stored votes.
+function mergeEspn(matches, espn) {
+  if (!espn?.events) return false;
+  let changed = false;
+  for (const ev of espn.events) {
+    const comp = ev.competitions?.[0];
+    if (!comp?.competitors) continue;
+    const hc = comp.competitors.find(c => c.homeAway === 'home');
+    const ac = comp.competitors.find(c => c.homeAway === 'away');
+    const home = fromFdName(hc?.team?.displayName);
+    const away = fromFdName(ac?.team?.displayName);
+    if (!home || !away) continue;
+    const day = (ev.date || '').slice(0, 10);
+    const m = matches.find(x =>
+      x.team1 === home && x.team2 === away &&
+      Math.abs(new Date(x.date) - new Date(day)) <= 86_400_000); // venue-tz date drift
+    if (!m) continue;
+    const st = comp.status?.type?.state; // 'pre' | 'in' | 'post'
+    if (st !== 'in' && st !== 'post') continue;
+    const h = Number(hc.score), a = Number(ac.score);
+    if (!Number.isFinite(h) || !Number.isFinite(a)) continue;
+    const score = { ft: [h, a] };
+    if ((comp.status?.period ?? 0) > 2) score.et = [h, a]; // periods 3+4 = extra time
+    const sh = Number(hc.shootoutScore), sa = Number(ac.shootoutScore);
+    if (Number.isFinite(sh) && Number.isFinite(sa) && sh + sa > 0) score.p = [sh, sa];
+    if (JSON.stringify(score) !== JSON.stringify(m.score)) {
+      m.score = score;
+      changed = true;
+    }
+    const live = st === 'in';
+    if (live !== Boolean(m._live)) changed = true;
+    if (live) m._live = true; else delete m._live;
   }
   return changed;
 }

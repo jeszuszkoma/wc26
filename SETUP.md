@@ -20,9 +20,14 @@ scores from openfootball, updated ~daily). Two optional upgrades below.
 > SQL editor to enable). Same name + PIN on another device = same player.
 > Still a trust-based friends game — don't post the link publicly.
 
-## 2. Near-live scores — football-data.org (~5 min, free)
+## 2. Live scores
 
-Without this, scores still arrive via openfootball (~once a day).
+Built in — no setup. The app reads ESPN's public scoreboard JSON directly
+(no key, CORS-open) and refreshes every minute, with openfootball as the
+~daily fallback. ESPN's feed is unofficial; if it ever changes shape, the
+football-data.org proxy below is the stable backup.
+
+### Optional fallback — football-data.org (~5 min, free)
 
 1. Register at [football-data.org](https://www.football-data.org/client/register) → free key by email.
 2. Install Supabase CLI (`brew install supabase/tap/supabase`), then:
