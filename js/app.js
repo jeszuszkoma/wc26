@@ -263,6 +263,22 @@ function teamShort(name) {
   return map[name] ?? name;
 }
 
+// Cross-check an exact-score guess against the 1X2 pick. Returns an error
+// message on contradiction, null when consistent (or no pick yet).
+// Knockout: a draw guess fits any pick — pens decide the winner.
+function guessConflict(match, pick, h, a) {
+  if (!match || !pick) return null;
+  const dir = h > a ? '1' : h < a ? '2' : 'X';
+  if (dir === pick) return null;
+  if (isKnockout(match) && dir === 'X') return null;
+  const label = {
+    1: `${teamShort(match.team1)} win`,
+    2: `${teamShort(match.team2)} win`,
+    X: 'draw',
+  };
+  return `${h}:${a} = ${label[dir]}, but your pick is ${label[pick]}`;
+}
+
 function renderMatches() {
   const days = new Map();
   const sorted = [...state.matches].sort((a, b) => kickoff(a) - kickoff(b));
@@ -513,11 +529,14 @@ document.addEventListener('click', async e => {
     }
     const me = playerName();
     const key = `${num}:${me}`;
+    const m = state.matches.find(x => x.num === num);
+    const conflict = guessConflict(m, state.votes[key], h, a);
+    if (conflict) { toast(conflict); return; }
     const prev = state.guesses[key];
     state.guesses[key] = [h, a]; // optimistic
     try {
       await castGuess(num, me, h, a);
-      toast(`Exact score saved: ${h}:${a} ✓`);
+      toast(`Exact score saved: ${h}:${a} ✓`, 'ok');
     } catch (err) {
       console.error(err);
       if (prev) state.guesses[key] = prev; else delete state.guesses[key];
@@ -546,7 +565,7 @@ document.addEventListener('click', async e => {
     render();
     try {
       await saveSpecial(me, state.specials[me]);
-      toast('Champion locked in 🏆');
+      toast('Champion locked in 🏆', 'ok');
     } catch (err) {
       console.error(err);
       state.specials[me] = prev;
@@ -564,7 +583,7 @@ document.addEventListener('click', async e => {
     state.specials[me] = { ...prev, final_score: text || null };
     try {
       await saveSpecial(me, state.specials[me]);
-      toast('Final score saved ✓');
+      toast('Final score saved ✓', 'ok');
     } catch (err) {
       console.error(err);
       state.specials[me] = prev;
@@ -581,6 +600,10 @@ document.addEventListener('click', async e => {
     const pick = btn.dataset.vote;
     const key = `${num}:${playerName()}`;
     const prev = state.votes[key];
+    const g = state.guesses[key];
+    if (g && guessConflict(state.matches.find(x => x.num === num), pick, g[0], g[1])) {
+      toast(`⚠ EXACT ${g[0]}:${g[1]} no longer matches your pick — update it`);
+    }
     state.votes[key] = pick;          // optimistic
     render();
     try {
@@ -602,11 +625,13 @@ document.addEventListener('keydown', e => {
   }
 });
 
-function toast(msg) {
+function toast(msg, kind = 'err') {
   const t = $('#toast');
   t.textContent = msg;
+  t.classList.toggle('ok', kind === 'ok');
   t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 3000);
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => t.classList.remove('show'), 3000);
 }
 
 /* ---------- boot ---------- */
