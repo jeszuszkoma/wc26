@@ -60,9 +60,10 @@ football-data.org proxy below is the stable backup.
 - Knockout picks score on the official result (after pens if needed).
 - **Trophy tab:** pick the World Cup champion — **20 pts** — and the gólkirály
   (tournament top scorer) — **20 pts**. Both are **one shot:** select, press OK,
-  permanent. Lock at knockout start; hidden from others until then. Top scorer
-  pick: tap a name from the favorites grid or OTHER… for any player (accents
-  don't matter). Tie at the top of the scorer race → every co-leader pick wins.
+  permanent. Lock **Sunday Jun 14, 22:00 CEST** (Netherlands–Japan kickoff);
+  hidden from others until then. Top scorer pick: tap a name from the favorites
+  grid or OTHER… for any player (accents don't matter). Tie at the top of the
+  scorer race → every co-leader pick wins.
 - The free-text exact final score section is disabled for now
   (`SHOW_FINAL_SCORE` in `js/config.js` re-enables it).
 

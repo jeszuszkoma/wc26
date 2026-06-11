@@ -137,6 +137,15 @@ function mySpecial() {
   return state.specials[playerName()] ?? { champion: null, final_score: null, top_scorer: null };
 }
 
+// Champion + gólkirály picks close at Netherlands–Japan kickoff (Sun Jun 14,
+// 22:00 CEST) — Márk's rule, well before knockout so group form can't be ridden.
+function specialsDeadline() {
+  const m = state.matches.find(x =>
+    (x.team1 === 'Netherlands' && x.team2 === 'Japan') ||
+    (x.team1 === 'Japan' && x.team2 === 'Netherlands'));
+  return m ? kickoff(m) : new Date('2026-06-14T22:00:00+02:00');
+}
+
 // Winner(s) of the gólkirály race — only once the tournament is decided.
 // Config override first (failsafe), else openfootball goal-list tally.
 function worldTopScorers() {
@@ -378,9 +387,9 @@ function renderKnockout() {
 }
 
 function renderTrophy() {
-  const ko1 = firstKnockoff();
+  const deadline = specialsDeadline();
   const fin = finalMatch();
-  const champLocked = ko1 ? state.now >= kickoff(ko1) : false;
+  const champLocked = state.now >= deadline;
   const scoreLocked = fin ? state.now >= kickoff(fin) : false;
   const champ = worldChampion();
   const mine = mySpecial();
@@ -398,7 +407,7 @@ function renderTrophy() {
         <span class="sp-pick">${flag(mine.champion)} ${esc(mine.champion)} 🔒</span>
       </div>
       <p class="special-note">Pick is final — it can't be changed. Hidden from others
-      until the knockout stage starts.</p>`;
+      until the picks lock.</p>`;
   } else if (!champLocked) {
     const sel = state.champPick;
     champBody = `<div class="champ-grid">${Object.keys(TEAMS).map(t => `
@@ -411,7 +420,7 @@ function renderTrophy() {
         <button id="champ-ok">OK</button>
       </div>` : ''}
       <p class="special-note">One shot — once you press OK the pick is locked forever.
-      Hidden from others until the knockout stage starts.</p>`;
+      Hidden from others until the picks lock.</p>`;
   } else {
     const rows = Object.entries(state.specials)
       .filter(([, s]) => s.champion)
@@ -436,7 +445,7 @@ function renderTrophy() {
         <span class="sp-pick">⚽ ${esc(mine.top_scorer)} 🔒</span>
       </div>
       <p class="special-note">Pick is final — it can't be changed. Hidden from others
-      until the knockout stage starts.</p>`;
+      until the picks lock.</p>`;
   } else if (!champLocked) {
     const sel = state.scorerPick;
     scorerBody = `<div class="champ-grid">${SCORERS.map(([n, t]) => `
@@ -457,7 +466,7 @@ function renderTrophy() {
         <button id="scorer-ok">OK</button>
       </div>` : ''}
       <p class="special-note">One shot — once you press OK the pick is locked forever.
-      Hidden from others until the knockout stage starts.</p>`;
+      Hidden from others until the picks lock.</p>`;
   } else {
     const rows = Object.entries(state.specials)
       .filter(([, s]) => s.top_scorer)
@@ -506,13 +515,13 @@ function renderTrophy() {
   <section class="special-card">
     <h2 class="group-head">🏆 WORLD CUP CHAMPION</h2>
     <p class="special-note">${CONFIG.POINTS_CHAMPION} pts for the correct winner ·
-      ${champLocked ? 'LOCKED' : `locks ${ko1 ? fmtDeadline(kickoff(ko1)) : '—'} (knockout start)`}</p>
+      ${champLocked ? 'LOCKED' : `locks ${fmtDeadline(deadline)} (NED–JPN kickoff)`}</p>
     ${champBody}
   </section>
   <section class="special-card">
     <h2 class="group-head">👑 GÓLKIRÁLY — TOP SCORER</h2>
     <p class="special-note">${CONFIG.POINTS_TOP_SCORER} pts for the tournament's top scorer ·
-      ${champLocked ? 'LOCKED' : `locks ${ko1 ? fmtDeadline(kickoff(ko1)) : '—'} (knockout start)`}</p>
+      ${champLocked ? 'LOCKED' : `locks ${fmtDeadline(deadline)} (NED–JPN kickoff)`}</p>
     ${scorerBody}
   </section>${scoreSection}`;
 }
