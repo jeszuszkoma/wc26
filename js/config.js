@@ -1,8 +1,8 @@
 // Fill these after creating the Supabase project (see SETUP.md).
 // Empty values = app runs in local mode (votes stay on this device only).
 export const CONFIG = {
-  SUPABASE_URL: '',        // e.g. 'https://abcdefgh.supabase.co'
-  SUPABASE_ANON_KEY: '',   // anon/public key from Supabase project settings
+  SUPABASE_URL: 'https://wwbovzfjoiuxzfehkqut.supabase.co',
+  SUPABASE_ANON_KEY: 'sb_publishable_t-CWzc_hRSDsW2Y8ebJQPA_ao7gx8cn', // public by design
   // Optional live-score proxy (Supabase edge function wrapping football-data.org).
   // Empty = scores come from openfootball (updated ~daily).
   SCORES_URL: '',          // e.g. 'https://abcdefgh.supabase.co/functions/v1/scores'
