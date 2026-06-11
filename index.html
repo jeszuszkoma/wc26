@@ -35,7 +35,12 @@
     <div class="modal-box">
       <h2>ENTER PLAYER TAG</h2>
       <input id="name-input" maxlength="20" placeholder="e.g. Márk" autocomplete="off">
+      <input id="pin-input" type="password" maxlength="8" placeholder="PIN — 4–8 digits"
+        inputmode="numeric" autocomplete="off">
+      <p id="name-error" hidden></p>
       <button id="name-save">JOIN ARENA</button>
+      <p class="modal-hint">First use of a name sets its PIN. Same name + PIN on
+        any device = same player, picks follow you.</p>
     </div>
   </div>
 

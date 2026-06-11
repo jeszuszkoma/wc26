@@ -349,13 +349,22 @@ nav { display: flex; gap: 6px; margin-top: 10px; }
   font-family: 'Orbitron', sans-serif; font-size: 0.95rem; letter-spacing: 0.2em;
   color: var(--cyan); margin-bottom: 16px;
 }
-#name-input {
+#name-input, #pin-input {
   width: 100%; padding: 11px 12px; font-family: 'Rajdhani', sans-serif;
   font-size: 1.1rem; font-weight: 600; letter-spacing: 0.06em;
   color: #fff; background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--line-soft); outline: none; text-align: center;
 }
-#name-input:focus { border-color: var(--cyan); box-shadow: 0 0 14px rgba(0, 229, 255, 0.25); }
+#name-input:focus, #pin-input:focus { border-color: var(--cyan); box-shadow: 0 0 14px rgba(0, 229, 255, 0.25); }
+#pin-input { margin-top: 10px; letter-spacing: 0.3em; }
+#name-error {
+  margin-top: 10px; font-size: 0.85rem; font-weight: 600;
+  color: var(--miss); letter-spacing: 0.05em;
+}
+.modal-hint {
+  margin-top: 12px; font-size: 0.74rem; color: var(--text-dim);
+  letter-spacing: 0.05em; line-height: 1.45;
+}
 #name-save {
   margin-top: 14px; width: 100%; padding: 11px;
   font-family: 'Orbitron', sans-serif; font-weight: 700; font-size: 0.85rem;

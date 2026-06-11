@@ -7,6 +7,7 @@ import {
 import {
   online, playerName, setPlayerName, fetchVotes, castVote, playersFrom,
   fetchSpecials, saveSpecial, fetchGuesses, castGuess,
+  claimPlayer, isClaimed, setClaimed,
 } from './votes.js';
 
 const $ = sel => document.querySelector(sel);
@@ -449,19 +450,46 @@ function renderBoard() {
 /* ---------- name modal ---------- */
 
 function askName(force = false) {
-  if (playerName() && !force) return;
+  // Devices from before the PIN era have a name but no claim — ask once.
+  if (playerName() && isClaimed() && !force) return;
   $('#name-modal').hidden = false;
   const input = $('#name-input');
   input.value = playerName();
-  setTimeout(() => input.focus(), 50);
+  $('#pin-input').value = '';
+  $('#name-error').hidden = true;
+  setTimeout(() => (input.value ? $('#pin-input') : input).focus(), 50);
 }
 
-function saveName() {
+async function saveName() {
   const v = $('#name-input').value.trim();
+  const pin = $('#pin-input').value.trim();
+  const err = $('#name-error');
   if (!v) return;
-  setPlayerName(v);
-  $('#name-modal').hidden = true;
-  render();
+  if (online() && !/^\d{4,8}$/.test(pin)) {
+    err.textContent = 'PIN must be 4–8 digits.';
+    err.hidden = false;
+    return;
+  }
+  const btn = $('#name-save');
+  btn.disabled = true;
+  try {
+    const ok = await claimPlayer(v, pin);
+    if (!ok) {
+      err.textContent = 'Wrong PIN — this name is already taken.';
+      err.hidden = false;
+      return;
+    }
+    setPlayerName(v);
+    setClaimed();
+    $('#name-modal').hidden = true;
+    render();
+  } catch (e) {
+    console.error(e);
+    err.textContent = 'Connection error — try again.';
+    err.hidden = false;
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 /* ---------- events ---------- */

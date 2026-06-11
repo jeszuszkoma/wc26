@@ -15,8 +15,10 @@ scores from openfootball, updated ~daily). Two optional upgrades below.
    ```
 5. Commit + push. Done — everyone's votes sync, leaderboard goes live.
 
-> Note: no logins. Anyone with the URL can vote under any name — fine for a
-> friends game, don't post the link publicly.
+> Note: no logins, but names are PIN-protected. The first device to use a name
+> sets a 4–8 digit PIN (run [`supabase/players.sql`](supabase/players.sql) in the
+> SQL editor to enable). Same name + PIN on another device = same player.
+> Still a trust-based friends game — don't post the link publicly.
 
 ## 2. Near-live scores — football-data.org (~5 min, free)
 
@@ -39,6 +41,8 @@ Without this, scores still arrive via openfootball (~once a day).
 
 ## Game rules (current)
 
+- Your name is your account: first use sets a PIN (4–8 digits), and the
+  name only works with that PIN afterwards — on any device.
 - Voting opens at local midnight on matchday, or 12 h before kickoff for
   early-morning games — future matches show when they unlock.
 - Pick `1` / `X` / `2` before kickoff (knockout: winner only). One pick per match, changeable until kickoff.

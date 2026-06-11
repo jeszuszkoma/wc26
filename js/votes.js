@@ -5,6 +5,7 @@ import { CONFIG } from './config.js';
 
 const LS_VOTES = 'wc26.votes';   // { "<matchNum>:<player>": "1"|"X"|"2" }
 const LS_NAME = 'wc26.player';
+const LS_CLAIMED = 'wc26.claimed'; // '1' once this device passed the PIN check
 
 export const online = () => Boolean(CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY);
 
@@ -13,6 +14,25 @@ export function playerName() {
 }
 export function setPlayerName(name) {
   localStorage.setItem(LS_NAME, name.trim());
+}
+export function isClaimed() {
+  return localStorage.getItem(LS_CLAIMED) === '1';
+}
+export function setClaimed() {
+  localStorage.setItem(LS_CLAIMED, '1');
+}
+
+// First call with a new name claims it (PIN stored hashed, server-side).
+// Later calls return true only when the PIN matches. Local mode: always true.
+export async function claimPlayer(name, pin) {
+  if (!online()) return true;
+  const res = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/rpc/claim_player`, {
+    method: 'POST',
+    headers: headers(),
+    body: JSON.stringify({ p_name: name, p_pin: pin }),
+  });
+  if (!res.ok) throw new Error(`claim failed ${res.status}: ${await res.text()}`);
+  return res.json();
 }
 
 function headers() {
