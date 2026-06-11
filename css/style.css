@@ -302,6 +302,18 @@ nav { display: flex; gap: 6px; margin-top: 10px; }
   display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 10px 12px;
   background: rgba(0, 229, 255, 0.06); border: 1px solid var(--cyan); clip-path: var(--clip);
 }
+.scorer-custom { margin-top: 12px; }
+#scorer-set {
+  padding: 10px 18px; font-family: 'Orbitron', sans-serif; font-weight: 700;
+  font-size: 0.75rem; letter-spacing: 0.14em; color: #021016;
+  background: var(--cyan); border: none; clip-path: var(--clip); cursor: pointer;
+}
+#scorer-input {
+  flex: 1; padding: 10px 12px; font-family: 'Rajdhani', sans-serif;
+  font-size: 1rem; font-weight: 600; color: #fff;
+  background: rgba(255, 255, 255, 0.04); border: 1px solid var(--line-soft); outline: none;
+}
+#scorer-input:focus { border-color: var(--cyan); box-shadow: 0 0 12px rgba(0, 229, 255, 0.2); }
 .confirm-txt { flex: 1; font-weight: 600; letter-spacing: 0.04em; }
 .champ-final { border-color: var(--cyan); }
 .champ-final .sp-pick { color: var(--cyan); font-weight: 700; }

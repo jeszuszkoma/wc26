@@ -118,26 +118,32 @@ export async function castGuess(matchNum, player, home, away) {
 
 /* ---- tournament-level predictions: champion + exact final score ---- */
 
-const LS_SPECIALS = 'wc26.specials'; // { "<player>": { champion, final_score } }
+const LS_SPECIALS = 'wc26.specials'; // { "<player>": { champion, final_score, top_scorer } }
 
-// -> { "<player>": { champion, final_score } }
+// -> { "<player>": { champion, final_score, top_scorer } }
 export async function fetchSpecials() {
   if (!online()) return JSON.parse(localStorage.getItem(LS_SPECIALS) || '{}');
-  const url = `${CONFIG.SUPABASE_URL}/rest/v1/specials?select=player,champion,final_score`;
+  const url = `${CONFIG.SUPABASE_URL}/rest/v1/specials?select=player,champion,final_score,top_scorer`;
   const rows = await fetch(url, { headers: headers() }).then(r => {
     if (!r.ok) throw new Error(`specials fetch ${r.status}`);
     return r.json();
   });
   const map = {};
-  for (const row of rows) map[row.player] = { champion: row.champion, final_score: row.final_score };
+  for (const row of rows) {
+    map[row.player] = {
+      champion: row.champion,
+      final_score: row.final_score,
+      top_scorer: row.top_scorer,
+    };
+  }
   return map;
 }
 
 // Send the FULL row — PostgREST upsert overwrites omitted columns with defaults.
-export async function saveSpecial(player, { champion = null, final_score = null }) {
+export async function saveSpecial(player, { champion = null, final_score = null, top_scorer = null }) {
   if (!online()) {
     const map = JSON.parse(localStorage.getItem(LS_SPECIALS) || '{}');
-    map[player] = { champion, final_score };
+    map[player] = { champion, final_score, top_scorer };
     localStorage.setItem(LS_SPECIALS, JSON.stringify(map));
     return;
   }
@@ -145,7 +151,7 @@ export async function saveSpecial(player, { champion = null, final_score = null 
   const res = await fetch(url, {
     method: 'POST',
     headers: { ...headers(), Prefer: 'resolution=merge-duplicates' },
-    body: JSON.stringify({ player, champion, final_score }),
+    body: JSON.stringify({ player, champion, final_score, top_scorer }),
   });
   if (!res.ok) throw new Error(`special save failed ${res.status}: ${await res.text()}`);
 }

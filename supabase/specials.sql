@@ -5,8 +5,13 @@ create table if not exists public.specials (
   player text primary key check (char_length(player) between 1 and 20),
   champion text check (champion is null or char_length(champion) <= 30),
   final_score text check (final_score is null or char_length(final_score) <= 40),
+  top_scorer text check (top_scorer is null or char_length(top_scorer) <= 40),
   updated_at timestamptz not null default now()
 );
+
+-- Existing installs: add the gólkirály column.
+alter table public.specials add column if not exists top_scorer text
+  check (top_scorer is null or char_length(top_scorer) <= 40);
 
 alter table public.specials enable row level security;
 

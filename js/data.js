@@ -154,8 +154,30 @@ function mergeOpenfootball(matches, fresh) {
       m.team1 = f.team1; m.team2 = f.team2;
       changed = true;
     }
+    // Goal lists (scorer names) appear as matches finish — gólkirály source.
+    if (JSON.stringify(f.goals1 ?? null) !== JSON.stringify(m.goals1 ?? null) ||
+        JSON.stringify(f.goals2 ?? null) !== JSON.stringify(m.goals2 ?? null)) {
+      m.goals1 = f.goals1; m.goals2 = f.goals2;
+      changed = true;
+    }
   }
   return changed;
+}
+
+// Top-scorer tally from openfootball goal lists. Own goals excluded.
+// -> [{ name, goals }] sorted desc, or null when no scorer data yet.
+export function topScorers(matches) {
+  const tally = new Map();
+  for (const m of matches) {
+    for (const g of [...(m.goals1 ?? []), ...(m.goals2 ?? [])]) {
+      if (g.owngoal || !g.name) continue;
+      tally.set(g.name, (tally.get(g.name) ?? 0) + 1);
+    }
+  }
+  if (!tally.size) return null;
+  return [...tally.entries()]
+    .map(([name, goals]) => ({ name, goals }))
+    .sort((a, b) => b.goals - a.goals || a.name.localeCompare(b.name));
 }
 
 // football-data.org v4 /competitions/WC/matches payload -> our match list.

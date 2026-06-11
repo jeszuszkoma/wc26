@@ -2,7 +2,7 @@ import { CONFIG } from './config.js';
 import { TEAMS, flag } from './teams.js';
 import {
   loadSchedule, refreshScores, kickoff, status, votingOpen, placeholder,
-  unlockTime, isKnockout, goals, goals90, outcome, standings, KO_ROUNDS,
+  unlockTime, isKnockout, goals, goals90, outcome, standings, topScorers, KO_ROUNDS,
 } from './data.js';
 import {
   online, playerName, setPlayerName, fetchVotes, castVote, playersFrom,
@@ -16,11 +16,37 @@ const state = {
   matches: [],
   votes: {},        // "num:player" -> pick
   guesses: {},      // "num:player" -> [home, away]
-  specials: {},     // player -> { champion, final_score }
+  specials: {},     // player -> { champion, final_score, top_scorer }
   champPick: null,  // champion selection awaiting OK (not saved yet)
+  scorerPick: null, // gólkirály selection awaiting OK
+  scorerCustom: false, // free-text scorer input open
   view: 'matches',
   now: new Date(),
 };
+
+// Gólkirály shortlist: realistic Golden Boot candidates from qualified teams.
+// "OTHER" opens a free-text field for everyone else.
+const SCORERS = [
+  ['Kylian Mbappé', 'France'], ['Erling Haaland', 'Norway'],
+  ['Harry Kane', 'England'], ['Lionel Messi', 'Argentina'],
+  ['Lautaro Martínez', 'Argentina'], ['Julián Álvarez', 'Argentina'],
+  ['Vinícius Júnior', 'Brazil'], ['Raphinha', 'Brazil'], ['Endrick', 'Brazil'],
+  ['Lamine Yamal', 'Spain'], ['Álvaro Morata', 'Spain'],
+  ['Jamal Musiala', 'Germany'], ['Florian Wirtz', 'Germany'],
+  ['Niclas Füllkrug', 'Germany'], ['Jude Bellingham', 'England'],
+  ['Bukayo Saka', 'England'], ['Cristiano Ronaldo', 'Portugal'],
+  ['Rafael Leão', 'Portugal'], ['Cody Gakpo', 'Netherlands'],
+  ['Memphis Depay', 'Netherlands'], ['Romelu Lukaku', 'Belgium'],
+  ['Darwin Núñez', 'Uruguay'], ['Luis Díaz', 'Colombia'],
+  ['Mohamed Salah', 'Egypt'], ['Sadio Mané', 'Senegal'],
+  ['Son Heung-min', 'South Korea'], ['Santiago Giménez', 'Mexico'],
+  ['Raúl Jiménez', 'Mexico'], ['Jonathan David', 'Canada'],
+  ['Christian Pulisic', 'USA'], ['Youssef En-Nesyri', 'Morocco'],
+  ['Marcus Thuram', 'France'],
+];
+
+// Accent/case-insensitive compare for free-text scorer picks.
+const norm = s => (s ?? '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim();
 
 /* ---------- helpers ---------- */
 
@@ -108,7 +134,17 @@ function worldChampion() {
   return res === '1' ? f.team1 : f.team2;
 }
 function mySpecial() {
-  return state.specials[playerName()] ?? { champion: null, final_score: null };
+  return state.specials[playerName()] ?? { champion: null, final_score: null, top_scorer: null };
+}
+
+// Winner(s) of the gólkirály race — only once the tournament is decided.
+// Config override first (failsafe), else openfootball goal-list tally.
+function worldTopScorers() {
+  if (CONFIG.TOP_SCORERS.length) return CONFIG.TOP_SCORERS;
+  if (!worldChampion()) return null; // race open until the final is played
+  const tally = topScorers(state.matches);
+  if (!tally) return null;
+  return tally.filter(s => s.goals === tally[0].goals).map(s => s.name);
 }
 
 /* ---------- scoring ---------- */
@@ -124,6 +160,14 @@ function leaderboard() {
   if (champ) {
     for (const p of players) {
       if (state.specials[p]?.champion === champ) byName.get(p).pts += CONFIG.POINTS_CHAMPION;
+    }
+  }
+  const tops = worldTopScorers()?.map(norm);
+  if (tops?.length) {
+    for (const p of players) {
+      if (tops.includes(norm(state.specials[p]?.top_scorer))) {
+        byName.get(p).pts += CONFIG.POINTS_TOP_SCORER;
+      }
     }
   }
   for (const m of state.matches) {
@@ -381,6 +425,52 @@ function renderTrophy() {
       : `<div class="empty">Nobody dared to pick a champion.</div>`;
   }
 
+  // --- gólkirály (top scorer) section — same lifecycle as champion ---
+  const winners = worldTopScorers();
+  const winnersN = winners?.map(norm) ?? [];
+  let scorerBody;
+  if (!champLocked && mine.top_scorer) {
+    scorerBody = `
+      <div class="special-row champ-final">
+        <span class="sp-player">YOUR PICK</span>
+        <span class="sp-pick">⚽ ${esc(mine.top_scorer)} 🔒</span>
+      </div>
+      <p class="special-note">Pick is final — it can't be changed. Hidden from others
+      until the knockout stage starts.</p>`;
+  } else if (!champLocked) {
+    const sel = state.scorerPick;
+    scorerBody = `<div class="champ-grid">${SCORERS.map(([n, t]) => `
+      <button class="champ-btn scorer-btn ${sel === n ? 'mine' : ''}" data-scorer="${esc(n)}">
+        <span class="flag">${flag(t)}</span><span>${esc(n)}</span>
+      </button>`).join('')}
+      <button class="champ-btn scorer-other ${state.scorerCustom ? 'mine' : ''}" id="scorer-other">
+        <span class="flag">✏️</span><span>OTHER…</span>
+      </button></div>
+      ${state.scorerCustom ? `
+      <div class="fs-row scorer-custom">
+        <input id="scorer-input" maxlength="40" placeholder="Player name…" autocomplete="off">
+        <button id="scorer-set">SET</button>
+      </div>` : ''}
+      ${sel ? `
+      <div class="champ-confirm">
+        <span class="confirm-txt">⚽ ${esc(sel)} — final answer? No changes later.</span>
+        <button id="scorer-ok">OK</button>
+      </div>` : ''}
+      <p class="special-note">One shot — once you press OK the pick is locked forever.
+      Hidden from others until the knockout stage starts.</p>`;
+  } else {
+    const rows = Object.entries(state.specials)
+      .filter(([, s]) => s.top_scorer)
+      .sort(([a], [b]) => a.localeCompare(b));
+    scorerBody = rows.length
+      ? `<div class="special-list">${rows.map(([p, s]) => `
+          <div class="special-row ${winnersN.includes(norm(s.top_scorer)) ? 'won' : ''}">
+            <span class="sp-player">${esc(p)}</span>
+            <span class="sp-pick">⚽ ${esc(s.top_scorer)}${winnersN.includes(norm(s.top_scorer)) ? ' ✓' : ''}</span>
+          </div>`).join('')}</div>`
+      : `<div class="empty">Nobody picked a gólkirály.</div>`;
+  }
+
   // --- exact final score section ---
   let scoreBody;
   if (!scoreLocked) {
@@ -418,6 +508,12 @@ function renderTrophy() {
     <p class="special-note">${CONFIG.POINTS_CHAMPION} pts for the correct winner ·
       ${champLocked ? 'LOCKED' : `locks ${ko1 ? fmtDeadline(kickoff(ko1)) : '—'} (knockout start)`}</p>
     ${champBody}
+  </section>
+  <section class="special-card">
+    <h2 class="group-head">👑 GÓLKIRÁLY — TOP SCORER</h2>
+    <p class="special-note">${CONFIG.POINTS_TOP_SCORER} pts for the tournament's top scorer ·
+      ${champLocked ? 'LOCKED' : `locks ${ko1 ? fmtDeadline(kickoff(ko1)) : '—'} (knockout start)`}</p>
+    ${scorerBody}
   </section>${scoreSection}`;
 }
 
@@ -439,6 +535,9 @@ function scoringLegend() {
     <div class="rule-row"><span class="rule-ico">🏆</span>
       <span class="rule-lab">World Cup champion — Trophy tab</span>
       <span class="rule-pts">${CONFIG.POINTS_CHAMPION} pts</span></div>
+    <div class="rule-row"><span class="rule-ico">👑</span>
+      <span class="rule-lab">Gólkirály (top scorer) — Trophy tab</span>
+      <span class="rule-pts">${CONFIG.POINTS_TOP_SCORER} pts</span></div>
     <p class="special-note">Votes lock at kickoff · everyone's picks hidden until then.</p>
   </section>`;
 }
@@ -547,6 +646,54 @@ document.addEventListener('click', async e => {
     return;
   }
 
+  if (e.target.closest('#scorer-other')) {
+    if (!playerName()) { askName(); return; }
+    if (mySpecial().top_scorer) return;
+    state.scorerCustom = !state.scorerCustom;
+    state.scorerPick = null;
+    render();
+    return;
+  }
+
+  if (e.target.closest('#scorer-set')) {
+    const v = $('#scorer-input').value.trim();
+    if (!v) { toast('Type a player name'); return; }
+    state.scorerPick = v;
+    state.scorerCustom = false;
+    render();
+    return;
+  }
+
+  const scorerBtn = e.target.closest('.scorer-btn');
+  if (scorerBtn) {
+    if (!playerName()) { askName(); return; }
+    if (mySpecial().top_scorer) return; // one shot — already locked in
+    state.scorerPick = scorerBtn.dataset.scorer;
+    state.scorerCustom = false;
+    render();
+    return;
+  }
+
+  if (e.target.closest('#scorer-ok')) {
+    if (!playerName()) { askName(); return; }
+    const me = playerName();
+    if (!state.scorerPick || state.specials[me]?.top_scorer) return;
+    const prev = state.specials[me] ?? { champion: null, final_score: null, top_scorer: null };
+    state.specials[me] = { ...prev, top_scorer: state.scorerPick }; // optimistic
+    state.scorerPick = null;
+    render();
+    try {
+      await saveSpecial(me, state.specials[me]);
+      toast('Gólkirály locked in 👑', 'ok');
+    } catch (err) {
+      console.error(err);
+      state.specials[me] = prev;
+      render();
+      toast('Save failed — check connection');
+    }
+    return;
+  }
+
   const champBtn = e.target.closest('.champ-btn');
   if (champBtn) {
     if (!playerName()) { askName(); return; }
@@ -620,6 +767,10 @@ document.addEventListener('click', async e => {
 
 document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && !$('#name-modal').hidden) { saveName(); return; }
+  if (e.key === 'Enter' && e.target.matches('#scorer-input')) {
+    $('#scorer-set').click();
+    return;
+  }
   if (e.key === 'Enter' && e.target.matches('.guess-row input')) {
     e.target.closest('.guess-row').querySelector('.guess-save').click();
     e.target.blur();
