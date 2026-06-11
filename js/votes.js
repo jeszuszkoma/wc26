@@ -62,3 +62,37 @@ export function playersFrom(votes) {
   if (me) set.add(me);
   return [...set].sort((a, b) => a.localeCompare(b));
 }
+
+/* ---- tournament-level predictions: champion + exact final score ---- */
+
+const LS_SPECIALS = 'wc26.specials'; // { "<player>": { champion, final_score } }
+
+// -> { "<player>": { champion, final_score } }
+export async function fetchSpecials() {
+  if (!online()) return JSON.parse(localStorage.getItem(LS_SPECIALS) || '{}');
+  const url = `${CONFIG.SUPABASE_URL}/rest/v1/specials?select=player,champion,final_score`;
+  const rows = await fetch(url, { headers: headers() }).then(r => {
+    if (!r.ok) throw new Error(`specials fetch ${r.status}`);
+    return r.json();
+  });
+  const map = {};
+  for (const row of rows) map[row.player] = { champion: row.champion, final_score: row.final_score };
+  return map;
+}
+
+// Send the FULL row — PostgREST upsert overwrites omitted columns with defaults.
+export async function saveSpecial(player, { champion = null, final_score = null }) {
+  if (!online()) {
+    const map = JSON.parse(localStorage.getItem(LS_SPECIALS) || '{}');
+    map[player] = { champion, final_score };
+    localStorage.setItem(LS_SPECIALS, JSON.stringify(map));
+    return;
+  }
+  const url = `${CONFIG.SUPABASE_URL}/rest/v1/specials?on_conflict=player`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { ...headers(), Prefer: 'resolution=merge-duplicates' },
+    body: JSON.stringify({ player, champion, final_score }),
+  });
+  if (!res.ok) throw new Error(`special save failed ${res.status}: ${await res.text()}`);
+}

@@ -45,5 +45,8 @@ Without this, scores still arrive via openfootball (~once a day).
 - Friends' picks are hidden until the match locks, then revealed on the card.
 - Correct result = 3 points. Leaderboard under **Board**.
 - Knockout picks score on the official result (after pens if needed).
+- **Trophy tab:** pick the World Cup champion (10 pts, locks when the knockout
+  stage starts) and write your exact final score prediction (free text, locks at
+  final kickoff, bragging rights only). Both hidden from others until locked.
 
 Change points or refresh rate in `js/config.js`.

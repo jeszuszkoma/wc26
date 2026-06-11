@@ -9,6 +9,8 @@ export const CONFIG = {
   // Points for a correct pick.
   POINTS_GROUP: 3,
   POINTS_KO: 3,
+  POINTS_CHAMPION: 10, // correct World Cup winner pick
+
   // How often to refresh scores + votes while the app is open (ms).
   REFRESH_MS: 60_000,
 };

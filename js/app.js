@@ -1,11 +1,12 @@
 import { CONFIG } from './config.js';
-import { flag } from './teams.js';
+import { TEAMS, flag } from './teams.js';
 import {
   loadSchedule, refreshScores, kickoff, status, votingOpen, placeholder,
   unlockTime, isKnockout, goals, outcome, standings, KO_ROUNDS,
 } from './data.js';
 import {
   online, playerName, setPlayerName, fetchVotes, castVote, playersFrom,
+  fetchSpecials, saveSpecial,
 } from './votes.js';
 
 const $ = sel => document.querySelector(sel);
@@ -13,6 +14,7 @@ const $ = sel => document.querySelector(sel);
 const state = {
   matches: [],
   votes: {},        // "num:player" -> pick
+  specials: {},     // player -> { champion, final_score }
   view: 'matches',
   now: new Date(),
 };
@@ -65,12 +67,41 @@ function votesFor(m) {
   return out;
 }
 
+/* ---------- tournament specials ---------- */
+
+function finalMatch() {
+  return state.matches.find(m => m.round === 'Final');
+}
+function firstKnockoff() {
+  // champion picks lock when the knockout stage begins
+  const ko = state.matches.filter(isKnockout).sort((a, b) => kickoff(a) - kickoff(b));
+  return ko[0];
+}
+// Champion team name once the final is decided, else null.
+function worldChampion() {
+  const f = finalMatch();
+  if (!f || placeholder(f)) return null;
+  const res = outcome(f);
+  if (!res || f._live) return null;
+  return res === '1' ? f.team1 : f.team2;
+}
+function mySpecial() {
+  return state.specials[playerName()] ?? { champion: null, final_score: null };
+}
+
 /* ---------- scoring ---------- */
 
 function leaderboard() {
-  const players = playersFrom(state.votes);
+  const players = [...new Set([...playersFrom(state.votes), ...Object.keys(state.specials)])]
+    .sort((a, b) => a.localeCompare(b));
   const rows = players.map(p => ({ player: p, pts: 0, hit: 0, played: 0 }));
   const byName = new Map(rows.map(r => [r.player, r]));
+  const champ = worldChampion();
+  if (champ) {
+    for (const p of players) {
+      if (state.specials[p]?.champion === champ) byName.get(p).pts += CONFIG.POINTS_CHAMPION;
+    }
+  }
   for (const m of state.matches) {
     const res = outcome(m);
     if (!res || m._live) continue;
@@ -98,6 +129,7 @@ function render() {
     matches: renderMatches,
     groups: renderGroups,
     knockout: renderKnockout,
+    trophy: renderTrophy,
     board: renderBoard,
   }[state.view];
   $('#view').innerHTML = view();
@@ -236,6 +268,76 @@ function renderKnockout() {
   }).join('');
 }
 
+function renderTrophy() {
+  const ko1 = firstKnockoff();
+  const fin = finalMatch();
+  const champLocked = ko1 ? state.now >= kickoff(ko1) : false;
+  const scoreLocked = fin ? state.now >= kickoff(fin) : false;
+  const champ = worldChampion();
+  const mine = mySpecial();
+  const fmtDeadline = d => d.toLocaleString([], {
+    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
+
+  // --- champion section ---
+  let champBody;
+  if (!champLocked) {
+    champBody = `<div class="champ-grid">${Object.keys(TEAMS).map(t => `
+      <button class="champ-btn ${mine.champion === t ? 'mine' : ''}" data-champ="${esc(t)}">
+        <span class="flag">${flag(t)}</span><span>${esc(teamShort(t))}</span>
+      </button>`).join('')}</div>
+      <p class="special-note">Picks are hidden from others until the knockout stage starts.</p>`;
+  } else {
+    const rows = Object.entries(state.specials)
+      .filter(([, s]) => s.champion)
+      .sort(([a], [b]) => a.localeCompare(b));
+    champBody = rows.length
+      ? `<div class="special-list">${rows.map(([p, s]) => `
+          <div class="special-row ${champ && s.champion === champ ? 'won' : ''}">
+            <span class="sp-player">${esc(p)}</span>
+            <span class="sp-pick">${flag(s.champion)} ${esc(s.champion)}${champ && s.champion === champ ? ' ✓' : ''}</span>
+          </div>`).join('')}</div>`
+      : `<div class="empty">Nobody dared to pick a champion.</div>`;
+  }
+
+  // --- exact final score section ---
+  let scoreBody;
+  if (!scoreLocked) {
+    scoreBody = `
+      <div class="fs-row">
+        <input id="fs-input" maxlength="40" placeholder="e.g. Argentina 2:1 France"
+          value="${esc(mine.final_score ?? '')}" autocomplete="off">
+        <button id="fs-save">SAVE</button>
+      </div>
+      <p class="special-note">Free text — write the exact final result you expect.
+      Hidden from others until the final kicks off. Bragging rights only.</p>`;
+  } else {
+    const rows = Object.entries(state.specials)
+      .filter(([, s]) => s.final_score)
+      .sort(([a], [b]) => a.localeCompare(b));
+    scoreBody = rows.length
+      ? `<div class="special-list">${rows.map(([p, s]) => `
+          <div class="special-row">
+            <span class="sp-player">${esc(p)}</span>
+            <span class="sp-pick">${esc(s.final_score)}</span>
+          </div>`).join('')}</div>`
+      : `<div class="empty">No final score predictions.</div>`;
+  }
+
+  return `
+  <section class="special-card">
+    <h2 class="group-head">🏆 WORLD CUP CHAMPION</h2>
+    <p class="special-note">${CONFIG.POINTS_CHAMPION} pts for the correct winner ·
+      ${champLocked ? 'LOCKED' : `locks ${ko1 ? fmtDeadline(kickoff(ko1)) : '—'} (knockout start)`}</p>
+    ${champBody}
+  </section>
+  <section class="special-card">
+    <h2 class="group-head">✍️ EXACT FINAL SCORE</h2>
+    <p class="special-note">${scoreLocked ? 'LOCKED' : `locks ${fin ? fmtDeadline(kickoff(fin)) : '—'} (final kickoff)`}</p>
+    ${scoreBody}
+  </section>`;
+}
+
 function renderBoard() {
   const rows = leaderboard();
   if (!rows.length) {
@@ -253,7 +355,8 @@ function renderBoard() {
       </tr>`).join('')}
     </tbody>
   </table>
-  <p class="board-note">${CONFIG.POINTS_GROUP} pts per correct pick · scores settle at full time</p>`;
+  <p class="board-note">${CONFIG.POINTS_GROUP} pts per correct pick ·
+    ${CONFIG.POINTS_CHAMPION} pts for the champion · scores settle at full time</p>`;
 }
 
 /* ---------- name modal ---------- */
@@ -282,6 +385,42 @@ document.addEventListener('click', async e => {
 
   if (e.target.closest('#player-chip')) { askName(true); return; }
   if (e.target.closest('#name-save')) { saveName(); return; }
+
+  const champBtn = e.target.closest('.champ-btn');
+  if (champBtn) {
+    if (!playerName()) { askName(); return; }
+    const me = playerName();
+    const prev = state.specials[me] ?? { champion: null, final_score: null };
+    state.specials[me] = { ...prev, champion: champBtn.dataset.champ }; // optimistic
+    render();
+    try {
+      await saveSpecial(me, state.specials[me]);
+    } catch (err) {
+      console.error(err);
+      state.specials[me] = prev;
+      render();
+      toast('Save failed — check connection');
+    }
+    return;
+  }
+
+  if (e.target.closest('#fs-save')) {
+    if (!playerName()) { askName(); return; }
+    const me = playerName();
+    const text = $('#fs-input').value.trim();
+    const prev = state.specials[me] ?? { champion: null, final_score: null };
+    state.specials[me] = { ...prev, final_score: text || null };
+    try {
+      await saveSpecial(me, state.specials[me]);
+      toast('Final score saved ✓');
+    } catch (err) {
+      console.error(err);
+      state.specials[me] = prev;
+      toast('Save failed — check connection');
+    }
+    render();
+    return;
+  }
 
   const btn = e.target.closest('.vote-btn');
   if (btn && !btn.disabled) {
@@ -320,13 +459,18 @@ async function boot() {
   state.matches = await loadSchedule();
   render();
   askName();
-  try { state.votes = await fetchVotes(); } catch (e) { console.warn(e); }
+  try {
+    [state.votes, state.specials] = await Promise.all([fetchVotes(), fetchSpecials()]);
+  } catch (e) { console.warn(e); }
   refreshScores(state.matches).then(() => render());
   render();
   setInterval(async () => {
     try {
-      const [votes] = await Promise.all([fetchVotes(), refreshScores(state.matches)]);
+      const [votes, specials] = await Promise.all([
+        fetchVotes(), fetchSpecials(), refreshScores(state.matches),
+      ]);
       state.votes = votes;
+      state.specials = specials;
       render();
     } catch (e) { console.warn('refresh failed', e); }
   }, CONFIG.REFRESH_MS);
