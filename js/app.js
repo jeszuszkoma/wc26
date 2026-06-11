@@ -384,13 +384,36 @@ function renderTrophy() {
   </section>`;
 }
 
+function scoringLegend() {
+  const resPts = CONFIG.POINTS_GROUP === CONFIG.POINTS_KO
+    ? `${CONFIG.POINTS_GROUP}` : `${CONFIG.POINTS_GROUP}/${CONFIG.POINTS_KO}`;
+  return `
+  <section class="special-card rules-card">
+    <h2 class="group-head">📐 SCORING</h2>
+    <div class="rule-row"><span class="rule-ico">✓</span>
+      <span class="rule-lab">Correct result — 1 / X / 2</span>
+      <span class="rule-pts">${resPts} pts</span></div>
+    <div class="rule-row"><span class="rule-ico">🎯</span>
+      <span class="rule-lab">Exact score — EXACT row on the match</span>
+      <span class="rule-pts">+${CONFIG.POINTS_EXACT} pts</span></div>
+    <div class="rule-row rule-sub"><span class="rule-ico">↳</span>
+      <span class="rule-lab">both right on one match</span>
+      <span class="rule-pts">${CONFIG.POINTS_GROUP + CONFIG.POINTS_EXACT} pts</span></div>
+    <div class="rule-row"><span class="rule-ico">🏆</span>
+      <span class="rule-lab">World Cup champion — Trophy tab</span>
+      <span class="rule-pts">${CONFIG.POINTS_CHAMPION} pts</span></div>
+    <p class="special-note">Votes lock at kickoff · everyone's picks hidden until then.</p>
+  </section>`;
+}
+
 function renderBoard() {
   const rows = leaderboard();
   if (!rows.length) {
-    return `<div class="empty">No players yet. Vote on a match to enter the arena.</div>`;
+    return scoringLegend() +
+      `<div class="empty">No players yet. Vote on a match to enter the arena.</div>`;
   }
   const medals = ['🥇', '🥈', '🥉'];
-  return `<table class="board">
+  return scoringLegend() + `<table class="board">
     <thead><tr><th>#</th><th class="tl">PLAYER</th><th>HITS</th><th>EXACT</th><th>PTS</th></tr></thead>
     <tbody>${rows.map((r, i) => `
       <tr class="${r.player === playerName() ? 'me' : ''}">
@@ -401,9 +424,7 @@ function renderBoard() {
         <td class="pts">${r.pts}</td>
       </tr>`).join('')}
     </tbody>
-  </table>
-  <p class="board-note">result ${CONFIG.POINTS_GROUP} pts · exact score +${CONFIG.POINTS_EXACT}
-    (both = ${CONFIG.POINTS_GROUP + CONFIG.POINTS_EXACT}) · champion ${CONFIG.POINTS_CHAMPION} pts</p>`;
+  </table>`;
 }
 
 /* ---------- name modal ---------- */
