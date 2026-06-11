@@ -6,7 +6,7 @@ import {
 } from './data.js';
 import {
   online, playerName, setPlayerName, fetchVotes, castVote, playersFrom,
-  fetchSpecials, saveSpecial,
+  fetchSpecials, saveSpecial, fetchGuesses, castGuess,
 } from './votes.js';
 
 const $ = sel => document.querySelector(sel);
@@ -14,6 +14,7 @@ const $ = sel => document.querySelector(sel);
 const state = {
   matches: [],
   votes: {},        // "num:player" -> pick
+  guesses: {},      // "num:player" -> [home, away]
   specials: {},     // player -> { champion, final_score }
   view: 'matches',
   now: new Date(),
@@ -58,6 +59,24 @@ function myPick(m) {
   return state.votes[`${m.num}:${playerName()}`] ?? null;
 }
 
+function myGuess(m) {
+  return state.guesses[`${m.num}:${playerName()}`] ?? null;
+}
+
+function guessesFor(m) {
+  const out = [];
+  const prefix = `${m.num}:`;
+  for (const [key, g] of Object.entries(state.guesses)) {
+    if (key.startsWith(prefix)) out.push({ player: key.slice(prefix.length), g });
+  }
+  return out.sort((a, b) => a.player.localeCompare(b.player));
+}
+
+function exactHit(m, g) {
+  const res = goals(m);
+  return res && g && g[0] === res.home && g[1] === res.away;
+}
+
 function votesFor(m) {
   const out = { 1: [], X: [], 2: [] };
   const prefix = `${m.num}:`;
@@ -92,9 +111,11 @@ function mySpecial() {
 /* ---------- scoring ---------- */
 
 function leaderboard() {
-  const players = [...new Set([...playersFrom(state.votes), ...Object.keys(state.specials)])]
-    .sort((a, b) => a.localeCompare(b));
-  const rows = players.map(p => ({ player: p, pts: 0, hit: 0, played: 0 }));
+  const guessPlayers = Object.keys(state.guesses).map(k => k.slice(k.indexOf(':') + 1));
+  const players = [...new Set([
+    ...playersFrom(state.votes), ...Object.keys(state.specials), ...guessPlayers,
+  ])].sort((a, b) => a.localeCompare(b));
+  const rows = players.map(p => ({ player: p, pts: 0, hit: 0, played: 0, exact: 0 }));
   const byName = new Map(rows.map(r => [r.player, r]));
   const champ = worldChampion();
   if (champ) {
@@ -106,13 +127,18 @@ function leaderboard() {
     const res = outcome(m);
     if (!res || m._live) continue;
     for (const p of players) {
-      const pick = state.votes[`${m.num}:${p}`];
-      if (!pick) continue;
       const row = byName.get(p);
-      row.played++;
-      if (pick === res) {
-        row.hit++;
-        row.pts += isKnockout(m) ? CONFIG.POINTS_KO : CONFIG.POINTS_GROUP;
+      const pick = state.votes[`${m.num}:${p}`];
+      if (pick) {
+        row.played++;
+        if (pick === res) {
+          row.hit++;
+          row.pts += isKnockout(m) ? CONFIG.POINTS_KO : CONFIG.POINTS_GROUP;
+        }
+      }
+      if (exactHit(m, state.guesses[`${m.num}:${p}`])) {
+        row.exact++;
+        row.pts += CONFIG.POINTS_EXACT;
       }
     }
   }
@@ -122,6 +148,9 @@ function leaderboard() {
 /* ---------- rendering ---------- */
 
 function render() {
+  // Don't clobber an input the user is typing in (refresh tick re-renders).
+  const ae = document.activeElement;
+  if (ae && ae.tagName === 'INPUT' && $('#view')?.contains(ae)) return;
   state.now = new Date();
   $('#player-chip').textContent = playerName() || 'SET NAME';
   $('#mode-banner').hidden = online();
@@ -175,6 +204,23 @@ function matchCard(m) {
         .join(' ')}</div>`
     : '';
 
+  // Exact score: inputs while open, revealed guesses (✓ = +5) once locked.
+  const mg = myGuess(m);
+  const guessRow = !locked
+    ? `<div class="guess-row" data-num="${m.num}">
+        <span class="guess-lab">EXACT</span>
+        <input class="gh" type="number" min="0" max="30" inputmode="numeric" placeholder="–" value="${mg ? mg[0] : ''}">
+        <span class="gsep">:</span>
+        <input class="ga" type="number" min="0" max="30" inputmode="numeric" placeholder="–" value="${mg ? mg[1] : ''}">
+        <button class="guess-save">OK</button>
+      </div>`
+    : '';
+  const gl = guessesFor(m);
+  const guessReveal = locked && gl.length
+    ? `<div class="picks-line">${gl.map(({ player, g }) =>
+        `<span class="pick-tag ${exactHit(m, g) ? 'ghit' : ''}">${esc(player)} ${g[0]}:${g[1]}${exactHit(m, g) ? ' ✓' : ''}</span>`).join('')}</div>`
+    : '';
+
   const score = g
     ? `<div class="score">${g.home}<span class="sep">:</span>${g.away}${g.pens ? `<span class="pens">(${g.pens[0]}–${g.pens[1]} p)</span>` : ''}</div>`
     : `<div class="score ko-time">${fmtTime(m)}</div>`;
@@ -192,7 +238,7 @@ function matchCard(m) {
     : unlock.toLocaleDateString([], { month: 'short', day: 'numeric' }).toUpperCase();
   const voteArea = future
     ? `<div class="vote-locked">⏳ VOTING OPENS ${unlockLabel}</div>`
-    : `<div class="vote-row">${voteBtns}</div>${reveal}`;
+    : `<div class="vote-row">${voteBtns}</div>${guessRow}${reveal}${guessReveal}`;
 
   return `
   <article class="match ${st}" id="m${m.num}">
@@ -345,18 +391,19 @@ function renderBoard() {
   }
   const medals = ['🥇', '🥈', '🥉'];
   return `<table class="board">
-    <thead><tr><th>#</th><th class="tl">PLAYER</th><th>HITS</th><th>PTS</th></tr></thead>
+    <thead><tr><th>#</th><th class="tl">PLAYER</th><th>HITS</th><th>EXACT</th><th>PTS</th></tr></thead>
     <tbody>${rows.map((r, i) => `
       <tr class="${r.player === playerName() ? 'me' : ''}">
         <td>${medals[i] ?? i + 1}</td>
         <td class="tl">${esc(r.player)}</td>
         <td>${r.hit}/${r.played}</td>
+        <td>${r.exact ? '★' + r.exact : '–'}</td>
         <td class="pts">${r.pts}</td>
       </tr>`).join('')}
     </tbody>
   </table>
-  <p class="board-note">${CONFIG.POINTS_GROUP} pts per correct pick ·
-    ${CONFIG.POINTS_CHAMPION} pts for the champion · scores settle at full time</p>`;
+  <p class="board-note">result ${CONFIG.POINTS_GROUP} pts · exact score +${CONFIG.POINTS_EXACT}
+    (both = ${CONFIG.POINTS_GROUP + CONFIG.POINTS_EXACT}) · champion ${CONFIG.POINTS_CHAMPION} pts</p>`;
 }
 
 /* ---------- name modal ---------- */
@@ -385,6 +432,32 @@ document.addEventListener('click', async e => {
 
   if (e.target.closest('#player-chip')) { askName(true); return; }
   if (e.target.closest('#name-save')) { saveName(); return; }
+
+  if (e.target.closest('.guess-save')) {
+    if (!playerName()) { askName(); return; }
+    const row = e.target.closest('.guess-row');
+    const num = Number(row.dataset.num);
+    const h = parseInt(row.querySelector('.gh').value, 10);
+    const a = parseInt(row.querySelector('.ga').value, 10);
+    if (!Number.isInteger(h) || !Number.isInteger(a) || h < 0 || a < 0 || h > 30 || a > 30) {
+      toast('Enter both scores (0–30)');
+      return;
+    }
+    const me = playerName();
+    const key = `${num}:${me}`;
+    const prev = state.guesses[key];
+    state.guesses[key] = [h, a]; // optimistic
+    try {
+      await castGuess(num, me, h, a);
+      toast(`Exact score saved: ${h}:${a} ✓`);
+    } catch (err) {
+      console.error(err);
+      if (prev) state.guesses[key] = prev; else delete state.guesses[key];
+      toast('Save failed — check connection');
+    }
+    render();
+    return;
+  }
 
   const champBtn = e.target.closest('.champ-btn');
   if (champBtn) {
@@ -443,7 +516,11 @@ document.addEventListener('click', async e => {
 });
 
 document.addEventListener('keydown', e => {
-  if (e.key === 'Enter' && !$('#name-modal').hidden) saveName();
+  if (e.key === 'Enter' && !$('#name-modal').hidden) { saveName(); return; }
+  if (e.key === 'Enter' && e.target.matches('.guess-row input')) {
+    e.target.closest('.guess-row').querySelector('.guess-save').click();
+    e.target.blur();
+  }
 });
 
 function toast(msg) {
@@ -460,17 +537,20 @@ async function boot() {
   render();
   askName();
   try {
-    [state.votes, state.specials] = await Promise.all([fetchVotes(), fetchSpecials()]);
+    [state.votes, state.specials, state.guesses] = await Promise.all([
+      fetchVotes(), fetchSpecials(), fetchGuesses(),
+    ]);
   } catch (e) { console.warn(e); }
   refreshScores(state.matches).then(() => render());
   render();
   setInterval(async () => {
     try {
-      const [votes, specials] = await Promise.all([
-        fetchVotes(), fetchSpecials(), refreshScores(state.matches),
+      const [votes, specials, guesses] = await Promise.all([
+        fetchVotes(), fetchSpecials(), fetchGuesses(), refreshScores(state.matches),
       ]);
       state.votes = votes;
       state.specials = specials;
+      state.guesses = guesses;
       render();
     } catch (e) { console.warn('refresh failed', e); }
   }, CONFIG.REFRESH_MS);

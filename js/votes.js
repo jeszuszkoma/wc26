@@ -63,6 +63,39 @@ export function playersFrom(votes) {
   return [...set].sort((a, b) => a.localeCompare(b));
 }
 
+/* ---- per-match exact score guesses ---- */
+
+const LS_GUESSES = 'wc26.guesses'; // { "<matchNum>:<player>": [home, away] }
+
+// -> { "<matchNum>:<player>": [home, away] }
+export async function fetchGuesses() {
+  if (!online()) return JSON.parse(localStorage.getItem(LS_GUESSES) || '{}');
+  const url = `${CONFIG.SUPABASE_URL}/rest/v1/guesses?select=match_num,player,home,away`;
+  const rows = await fetch(url, { headers: headers() }).then(r => {
+    if (!r.ok) throw new Error(`guesses fetch ${r.status}`);
+    return r.json();
+  });
+  const map = {};
+  for (const row of rows) map[`${row.match_num}:${row.player}`] = [row.home, row.away];
+  return map;
+}
+
+export async function castGuess(matchNum, player, home, away) {
+  if (!online()) {
+    const map = JSON.parse(localStorage.getItem(LS_GUESSES) || '{}');
+    map[`${matchNum}:${player}`] = [home, away];
+    localStorage.setItem(LS_GUESSES, JSON.stringify(map));
+    return;
+  }
+  const url = `${CONFIG.SUPABASE_URL}/rest/v1/guesses?on_conflict=match_num,player`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { ...headers(), Prefer: 'resolution=merge-duplicates' },
+    body: JSON.stringify({ match_num: matchNum, player, home, away }),
+  });
+  if (!res.ok) throw new Error(`guess failed ${res.status}: ${await res.text()}`);
+}
+
 /* ---- tournament-level predictions: champion + exact final score ---- */
 
 const LS_SPECIALS = 'wc26.specials'; // { "<player>": { champion, final_score } }
