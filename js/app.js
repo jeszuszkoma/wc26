@@ -31,9 +31,9 @@ const SCORERS = [
   ['Harry Kane', 'England'], ['Lionel Messi', 'Argentina'],
   ['Lautaro Martínez', 'Argentina'], ['Julián Álvarez', 'Argentina'],
   ['Vinícius Júnior', 'Brazil'], ['Raphinha', 'Brazil'], ['Endrick', 'Brazil'],
-  ['Lamine Yamal', 'Spain'], ['Álvaro Morata', 'Spain'],
+  ['Lamine Yamal', 'Spain'], ['Mikel Oyarzabal', 'Spain'],
   ['Jamal Musiala', 'Germany'], ['Florian Wirtz', 'Germany'],
-  ['Niclas Füllkrug', 'Germany'], ['Jude Bellingham', 'England'],
+  ['Kai Havertz', 'Germany'], ['Jude Bellingham', 'England'],
   ['Bukayo Saka', 'England'], ['Cristiano Ronaldo', 'Portugal'],
   ['Rafael Leão', 'Portugal'], ['Cody Gakpo', 'Netherlands'],
   ['Memphis Depay', 'Netherlands'], ['Romelu Lukaku', 'Belgium'],
@@ -41,7 +41,7 @@ const SCORERS = [
   ['Mohamed Salah', 'Egypt'], ['Sadio Mané', 'Senegal'],
   ['Son Heung-min', 'South Korea'], ['Santiago Giménez', 'Mexico'],
   ['Raúl Jiménez', 'Mexico'], ['Jonathan David', 'Canada'],
-  ['Christian Pulisic', 'USA'], ['Youssef En-Nesyri', 'Morocco'],
+  ['Christian Pulisic', 'USA'], ['Ayoub El Kaabi', 'Morocco'],
   ['Marcus Thuram', 'France'],
 ];
 
