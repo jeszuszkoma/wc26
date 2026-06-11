@@ -64,6 +64,14 @@ export function goals(match) {
   return { home: ft[0], away: ft[1], pens: s.p ?? null };
 }
 
+// Regular-time (90') score only — EXACT guesses judge on this, betting style.
+// openfootball keeps ft = 90' even when et/p exist.
+export function goals90(match) {
+  const s = match.score;
+  if (!s?.ft) return null;
+  return { home: s.ft[0], away: s.ft[1] };
+}
+
 // '1' | 'X' | '2' for a finished match; knockout uses pens/et to break ties.
 export function outcome(match) {
   const g = goals(match);
@@ -211,7 +219,16 @@ function mergeEspn(matches, espn) {
     const h = Number(hc.score), a = Number(ac.score);
     if (!Number.isFinite(h) || !Number.isFinite(a)) continue;
     const score = { ft: [h, a] };
-    if ((comp.status?.period ?? 0) > 2) score.et = [h, a]; // periods 3+4 = extra time
+    if ((comp.status?.period ?? 0) > 2) {
+      // Extra time: keep ft = 90' score (sum of periods 1–2) when ESPN
+      // provides linescores; openfootball corrects it later either way.
+      const reg = c => (c.linescores ?? []).slice(0, 2)
+        .reduce((s, l) => s + Number(l.value ?? 0), 0);
+      if (hc.linescores?.length >= 2 && ac.linescores?.length >= 2) {
+        score.ft = [reg(hc), reg(ac)];
+      }
+      score.et = [h, a]; // periods 3+4 = extra time, et = 120' total
+    }
     const sh = Number(hc.shootoutScore), sa = Number(ac.shootoutScore);
     if (Number.isFinite(sh) && Number.isFinite(sa) && sh + sa > 0) score.p = [sh, sa];
     if (JSON.stringify(score) !== JSON.stringify(m.score)) {

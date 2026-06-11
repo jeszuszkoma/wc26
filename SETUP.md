@@ -54,6 +54,9 @@ football-data.org proxy below is the stable backup.
 - Friends' picks are hidden until the match locks, then revealed on the card.
 - Correct result = 3 points. Exact score (EXACT row, optional) = +5 — both right
   on one match = 8. Leaderboard under **Board**.
+- The EXACT score is judged on the **90-minute result** (betting style) — extra
+  time and shootout goals don't count. An exact guess can't contradict your
+  1/X/2 pick; knockout draw guesses are fine (pens pick the winner).
 - Knockout picks score on the official result (after pens if needed).
 - **Trophy tab:** pick the World Cup champion — 10 pts. **One shot:** select a
   team, press OK, and the pick is permanent (no changes). Latest at knockout

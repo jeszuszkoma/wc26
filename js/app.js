@@ -2,7 +2,7 @@ import { CONFIG } from './config.js';
 import { TEAMS, flag } from './teams.js';
 import {
   loadSchedule, refreshScores, kickoff, status, votingOpen, placeholder,
-  unlockTime, isKnockout, goals, outcome, standings, KO_ROUNDS,
+  unlockTime, isKnockout, goals, goals90, outcome, standings, KO_ROUNDS,
 } from './data.js';
 import {
   online, playerName, setPlayerName, fetchVotes, castVote, playersFrom,
@@ -74,8 +74,9 @@ function guessesFor(m) {
   return out.sort((a, b) => a.player.localeCompare(b.player));
 }
 
+// EXACT judges on the 90-minute score, betting style — ET goals don't count.
 function exactHit(m, g) {
-  const res = goals(m);
+  const res = goals90(m);
   return res && g && g[0] === res.home && g[1] === res.away;
 }
 
