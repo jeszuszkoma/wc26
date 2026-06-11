@@ -46,8 +46,10 @@ Without this, scores still arrive via openfootball (~once a day).
 - Correct result = 3 points. Exact score (EXACT row, optional) = +5 — both right
   on one match = 8. Leaderboard under **Board**.
 - Knockout picks score on the official result (after pens if needed).
-- **Trophy tab:** pick the World Cup champion (10 pts, locks when the knockout
-  stage starts) and write your exact final score prediction (free text, locks at
-  final kickoff, bragging rights only). Both hidden from others until locked.
+- **Trophy tab:** pick the World Cup champion — 10 pts. **One shot:** select a
+  team, press OK, and the pick is permanent (no changes). Latest at knockout
+  start. Hidden from others until the knockout stage begins.
+- The free-text exact final score section is disabled for now
+  (`SHOW_FINAL_SCORE` in `js/config.js` re-enables it).
 
 Change points or refresh rate in `js/config.js`.

@@ -11,6 +11,7 @@ export const CONFIG = {
   POINTS_KO: 3,
   POINTS_CHAMPION: 10, // correct World Cup winner pick
   POINTS_EXACT: 5,     // exact score guess (stacks with the 1X2 pick: 3+5=8)
+  SHOW_FINAL_SCORE: false, // Trophy tab free-text final score — hidden for now
 
   // How often to refresh scores + votes while the app is open (ms).
   REFRESH_MS: 60_000,

@@ -16,6 +16,7 @@ const state = {
   votes: {},        // "num:player" -> pick
   guesses: {},      // "num:player" -> [home, away]
   specials: {},     // player -> { champion, final_score }
+  champPick: null,  // champion selection awaiting OK (not saved yet)
   view: 'matches',
   now: new Date(),
 };
@@ -327,12 +328,28 @@ function renderTrophy() {
 
   // --- champion section ---
   let champBody;
-  if (!champLocked) {
+  if (!champLocked && mine.champion) {
+    // One-shot pick already made — show it, no way back.
+    champBody = `
+      <div class="special-row champ-final">
+        <span class="sp-player">YOUR PICK</span>
+        <span class="sp-pick">${flag(mine.champion)} ${esc(mine.champion)} 🔒</span>
+      </div>
+      <p class="special-note">Pick is final — it can't be changed. Hidden from others
+      until the knockout stage starts.</p>`;
+  } else if (!champLocked) {
+    const sel = state.champPick;
     champBody = `<div class="champ-grid">${Object.keys(TEAMS).map(t => `
-      <button class="champ-btn ${mine.champion === t ? 'mine' : ''}" data-champ="${esc(t)}">
+      <button class="champ-btn ${sel === t ? 'mine' : ''}" data-champ="${esc(t)}">
         <span class="flag">${flag(t)}</span><span>${esc(teamShort(t))}</span>
       </button>`).join('')}</div>
-      <p class="special-note">Picks are hidden from others until the knockout stage starts.</p>`;
+      ${sel ? `
+      <div class="champ-confirm">
+        <span class="confirm-txt">${flag(sel)} ${esc(sel)} — final answer? No changes later.</span>
+        <button id="champ-ok">OK</button>
+      </div>` : ''}
+      <p class="special-note">One shot — once you press OK the pick is locked forever.
+      Hidden from others until the knockout stage starts.</p>`;
   } else {
     const rows = Object.entries(state.specials)
       .filter(([, s]) => s.champion)
@@ -370,18 +387,20 @@ function renderTrophy() {
       : `<div class="empty">No final score predictions.</div>`;
   }
 
+  const scoreSection = CONFIG.SHOW_FINAL_SCORE ? `
+  <section class="special-card">
+    <h2 class="group-head">✍️ EXACT FINAL SCORE</h2>
+    <p class="special-note">${scoreLocked ? 'LOCKED' : `locks ${fin ? fmtDeadline(kickoff(fin)) : '—'} (final kickoff)`}</p>
+    ${scoreBody}
+  </section>` : '';
+
   return `
   <section class="special-card">
     <h2 class="group-head">🏆 WORLD CUP CHAMPION</h2>
     <p class="special-note">${CONFIG.POINTS_CHAMPION} pts for the correct winner ·
       ${champLocked ? 'LOCKED' : `locks ${ko1 ? fmtDeadline(kickoff(ko1)) : '—'} (knockout start)`}</p>
     ${champBody}
-  </section>
-  <section class="special-card">
-    <h2 class="group-head">✍️ EXACT FINAL SCORE</h2>
-    <p class="special-note">${scoreLocked ? 'LOCKED' : `locks ${fin ? fmtDeadline(kickoff(fin)) : '—'} (final kickoff)`}</p>
-    ${scoreBody}
-  </section>`;
+  </section>${scoreSection}`;
 }
 
 function scoringLegend() {
@@ -483,12 +502,23 @@ document.addEventListener('click', async e => {
   const champBtn = e.target.closest('.champ-btn');
   if (champBtn) {
     if (!playerName()) { askName(); return; }
+    if (mySpecial().champion) return; // one shot — already locked in
+    state.champPick = champBtn.dataset.champ; // selection only, OK confirms
+    render();
+    return;
+  }
+
+  if (e.target.closest('#champ-ok')) {
+    if (!playerName()) { askName(); return; }
     const me = playerName();
+    if (!state.champPick || (state.specials[me]?.champion)) return;
     const prev = state.specials[me] ?? { champion: null, final_score: null };
-    state.specials[me] = { ...prev, champion: champBtn.dataset.champ }; // optimistic
+    state.specials[me] = { ...prev, champion: state.champPick }; // optimistic
+    state.champPick = null;
     render();
     try {
       await saveSpecial(me, state.specials[me]);
+      toast('Champion locked in 🏆');
     } catch (err) {
       console.error(err);
       state.specials[me] = prev;
