@@ -130,7 +130,8 @@ function matchCard(m) {
     ].join(' ');
     const label = o === '1' ? (ko ? teamShort(m.team1) : '1')
                 : o === '2' ? (ko ? teamShort(m.team2) : '2') : 'X';
-    const count = names.length ? `<span class="vcount">${names.length}</span>` : '';
+    // Counts stay hidden until kickoff — fully blind voting.
+    const count = locked && names.length ? `<span class="vcount">${names.length}</span>` : '';
     return `<button class="${cls}" data-vote="${o}" data-num="${m.num}"
       ${locked || placeholder(m) ? 'disabled' : ''}>${label}${count}</button>`;
   }).join('');
