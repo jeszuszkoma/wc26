@@ -598,13 +598,13 @@ async function saveName() {
   const btn = $('#name-save');
   btn.disabled = true;
   try {
-    const ok = await claimPlayer(v, pin);
-    if (!ok) {
+    const claimed = await claimPlayer(v, pin);
+    if (!claimed) {
       err.textContent = 'Wrong PIN — this name is already taken.';
       err.hidden = false;
       return;
     }
-    setPlayerName(v);
+    setPlayerName(claimed);
     setClaimed();
     $('#name-modal').hidden = true;
     render();

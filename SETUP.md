@@ -17,7 +17,9 @@ scores from openfootball, updated ~daily). Two optional upgrades below.
 
 > Note: no logins, but names are PIN-protected. The first device to use a name
 > sets a 4–8 digit PIN (run [`supabase/players.sql`](supabase/players.sql) in the
-> SQL editor to enable). Same name + PIN on another device = same player.
+> SQL editor to enable). Same name + PIN on another device = same player —
+> capitalization doesn't matter. Registration is currently frozen (existing
+> players only; see players.sql to admit someone or reopen).
 > Still a trust-based friends game — don't post the link publicly.
 
 ## 2. Live scores
@@ -46,8 +48,9 @@ football-data.org proxy below is the stable backup.
 
 ## Game rules (current)
 
-- Your name is your account: first use sets a PIN (4–8 digits), and the
-  name only works with that PIN afterwards — on any device.
+- Your name is your account, protected by your PIN (4–8 digits) — works on
+  any device, capitalization doesn't matter. New names are closed for now;
+  the players who are in are in.
 - Voting opens at local midnight on matchday, or 12 h before kickoff for
   early-morning games — future matches show when they unlock.
 - Pick `1` / `X` / `2` before kickoff (knockout: winner only). One pick per match, changeable until kickoff.

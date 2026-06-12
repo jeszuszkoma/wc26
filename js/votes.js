@@ -23,16 +23,20 @@ export function setClaimed() {
 }
 
 // First call with a new name claims it (PIN stored hashed, server-side).
-// Later calls return true only when the PIN matches. Local mode: always true.
+// Name matching is case-insensitive; returns the canonical stored name
+// (capitalization as first claimed) or null when the PIN doesn't match.
+// Local mode: name as typed.
 export async function claimPlayer(name, pin) {
-  if (!online()) return true;
+  if (!online()) return name;
   const res = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/rpc/claim_player`, {
     method: 'POST',
     headers: headers(),
     body: JSON.stringify({ p_name: name, p_pin: pin }),
   });
   if (!res.ok) throw new Error(`claim failed ${res.status}: ${await res.text()}`);
-  return res.json();
+  const r = await res.json();
+  if (r === true) return name; // older boolean-returning function
+  return r || null;
 }
 
 function headers() {
