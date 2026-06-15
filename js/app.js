@@ -229,19 +229,29 @@ function render() {
     const target = (num != null && document.getElementById(`m${num}`))
       || document.querySelector('.day-today');
     if (target) {
-      target.scrollIntoView({ block: 'center' });
+      target.scrollIntoView({ block: 'start' }); // scroll-padding-top clears the sticky header
       state.autoScrolled = true; // latch until the user leaves & re-enters Matches
     }
   }
 }
 
-// The match the app should jump to: the live one if a game is on, otherwise
-// the next upcoming kickoff, otherwise the last match (tournament finished).
+// The match the app should jump to. Purely time-based (never trusts a stale
+// _live flag, which could otherwise drag the jump to an old match):
+//   1. a game in play  — kicked off within the last ~2.5h and no final score
+//   2. else the next match that hasn't kicked off (rolls to the next day)
+//   3. else the last match (tournament over)
+const LIVE_WINDOW_MS = 150 * 60_000; // 90' + ET + pens + halftime headroom
 function focusMatchNum() {
   const sorted = [...state.matches].sort((a, b) => kickoff(a) - kickoff(b));
-  const focus = sorted.find(m => m._live || status(m, state.now) !== 'finished')
-    ?? sorted[sorted.length - 1];
-  return focus?.num ?? null;
+  const now = state.now.getTime();
+  const live = sorted.find(m => {
+    const k = kickoff(m).getTime();
+    return now >= k && now < k + LIVE_WINDOW_MS && !m.score?.ft;
+  });
+  if (live) return live.num;
+  const next = sorted.find(m => kickoff(m).getTime() > now);
+  if (next) return next.num;
+  return sorted.length ? sorted[sorted.length - 1].num : null;
 }
 
 function matchCard(m) {
