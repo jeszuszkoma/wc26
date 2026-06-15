@@ -22,6 +22,8 @@ const state = {
   scorerCustom: false, // free-text scorer input open
   view: 'matches',
   now: new Date(),
+  autoScrolled: false, // have we jumped to the focus match yet this matches-view visit
+  scoresLoaded: false, // first refreshScores done — layout is stable enough to jump
 };
 
 // Gólkirály shortlist: realistic Golden Boot candidates from qualified teams.
@@ -220,10 +222,26 @@ function render() {
   $('#view').innerHTML = view();
   document.querySelectorAll('.tab').forEach(t =>
     t.classList.toggle('active', t.dataset.view === state.view));
-  if (state.view === 'matches' && !state.autoScrolled) {
-    state.autoScrolled = true;
-    document.querySelector('.day-today')?.scrollIntoView({ block: 'start' });
+  // Jump to the focus match — but only once scores/picks have loaded, so the
+  // finished cards above it have their final height and don't shove it away.
+  if (state.view === 'matches' && !state.autoScrolled && state.scoresLoaded) {
+    const num = focusMatchNum();
+    const target = (num != null && document.getElementById(`m${num}`))
+      || document.querySelector('.day-today');
+    if (target) {
+      target.scrollIntoView({ block: 'center' });
+      state.autoScrolled = true; // latch until the user leaves & re-enters Matches
+    }
   }
+}
+
+// The match the app should jump to: the live one if a game is on, otherwise
+// the next upcoming kickoff, otherwise the last match (tournament finished).
+function focusMatchNum() {
+  const sorted = [...state.matches].sort((a, b) => kickoff(a) - kickoff(b));
+  const focus = sorted.find(m => m._live || status(m, state.now) !== 'finished')
+    ?? sorted[sorted.length - 1];
+  return focus?.num ?? null;
 }
 
 function matchCard(m) {
@@ -621,7 +639,13 @@ async function saveName() {
 
 document.addEventListener('click', async e => {
   const tab = e.target.closest('.tab');
-  if (tab) { state.view = tab.dataset.view; render(); return; }
+  if (tab) {
+    // Re-arm the jump each time the user enters Matches from another tab.
+    if (tab.dataset.view === 'matches' && state.view !== 'matches') state.autoScrolled = false;
+    state.view = tab.dataset.view;
+    render();
+    return;
+  }
 
   if (e.target.closest('#player-chip')) { askName(true); return; }
   if (e.target.closest('#name-save')) { saveName(); return; }
@@ -806,7 +830,7 @@ async function boot() {
       fetchVotes(), fetchSpecials(), fetchGuesses(),
     ]);
   } catch (e) { console.warn(e); }
-  refreshScores(state.matches).then(() => render());
+  refreshScores(state.matches).then(() => { state.scoresLoaded = true; render(); });
   render();
   setInterval(async () => {
     try {
