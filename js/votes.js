@@ -47,16 +47,30 @@ function headers() {
   };
 }
 
+// PostgREST caps each response at 1000 rows. Once the tournament passes 1000
+// votes/guesses the newest picks fall off the end and look "lost" on refresh,
+// so page through with the Range header until a short page comes back.
+async function fetchAllRows(path) {
+  const PAGE = 1000;
+  const all = [];
+  for (let from = 0; ; from += PAGE) {
+    const res = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/${path}`, {
+      headers: { ...headers(), 'Range-Unit': 'items', Range: `${from}-${from + PAGE - 1}` },
+    });
+    if (!res.ok) throw new Error(`${path} fetch ${res.status}`);
+    const rows = await res.json();
+    all.push(...rows);
+    if (rows.length < PAGE) return all;
+  }
+}
+
 // -> { "<matchNum>:<player>": pick }
 export async function fetchVotes() {
   if (!online()) {
     return JSON.parse(localStorage.getItem(LS_VOTES) || '{}');
   }
-  const url = `${CONFIG.SUPABASE_URL}/rest/v1/votes?select=match_num,player,pick`;
-  const rows = await fetch(url, { headers: headers() }).then(r => {
-    if (!r.ok) throw new Error(`votes fetch ${r.status}`);
-    return r.json();
-  });
+  // Stable order so paging can't skip or repeat rows between pages.
+  const rows = await fetchAllRows('votes?select=match_num,player,pick&order=match_num.asc,player.asc');
   const map = {};
   for (const row of rows) map[`${row.match_num}:${row.player}`] = row.pick;
   return map;
@@ -94,11 +108,7 @@ const LS_GUESSES = 'wc26.guesses'; // { "<matchNum>:<player>": [home, away] }
 // -> { "<matchNum>:<player>": [home, away] }
 export async function fetchGuesses() {
   if (!online()) return JSON.parse(localStorage.getItem(LS_GUESSES) || '{}');
-  const url = `${CONFIG.SUPABASE_URL}/rest/v1/guesses?select=match_num,player,home,away`;
-  const rows = await fetch(url, { headers: headers() }).then(r => {
-    if (!r.ok) throw new Error(`guesses fetch ${r.status}`);
-    return r.json();
-  });
+  const rows = await fetchAllRows('guesses?select=match_num,player,home,away&order=match_num.asc,player.asc');
   const map = {};
   for (const row of rows) map[`${row.match_num}:${row.player}`] = [row.home, row.away];
   return map;
