@@ -3,6 +3,7 @@ import { TEAMS, flag } from './teams.js';
 import {
   loadSchedule, refreshScores, kickoff, status, votingOpen, placeholder,
   unlockTime, isKnockout, goals, goals90, outcome, standings, topScorers, KO_ROUNDS,
+  fetchTopScorers,
 } from './data.js';
 import {
   online, playerName, setPlayerName, fetchVotes, castVote, playersFrom,
@@ -24,6 +25,7 @@ const state = {
   now: new Date(),
   autoScrolled: false, // have we jumped to the focus match yet this matches-view visit
   scoresLoaded: false, // first refreshScores done — layout is stable enough to jump
+  scorerRace: [],   // live tournament top-scorer tally from ESPN [{name, goals}]
 };
 
 // Gólkirály shortlist: realistic Golden Boot candidates from qualified teams.
@@ -235,18 +237,21 @@ function render() {
   }
 }
 
-// The match the app should jump to. Purely time-based (never trusts a stale
-// _live flag, which could otherwise drag the jump to an old match):
-//   1. a game in play  — kicked off within the last ~2.5h and no final score
+// The match the app should jump to:
+//   1. a game in play — but only one whose kickoff is within the live window,
+//      so a stale _live flag left on an old match can't drag the jump back
 //   2. else the next match that hasn't kicked off (rolls to the next day)
 //   3. else the last match (tournament over)
 const LIVE_WINDOW_MS = 150 * 60_000; // 90' + ET + pens + halftime headroom
 function focusMatchNum() {
   const sorted = [...state.matches].sort((a, b) => kickoff(a) - kickoff(b));
   const now = state.now.getTime();
+  // status()==='live' covers both the live feed and the post-kickoff window;
+  // the time guard discards a stale flag stuck on a long-finished match.
+  // (A live match carries a *current* score.ft, so don't test ft here.)
   const live = sorted.find(m => {
     const k = kickoff(m).getTime();
-    return now >= k && now < k + LIVE_WINDOW_MS && !m.score?.ft;
+    return now >= k && now < k + LIVE_WINDOW_MS && status(m, state.now) === 'live';
   });
   if (live) return live.num;
   const next = sorted.find(m => kickoff(m).getTime() > now);
@@ -551,7 +556,29 @@ function renderTrophy() {
     <p class="special-note">${CONFIG.POINTS_TOP_SCORER} pts for the tournament's top scorer ·
       ${champLocked ? 'LOCKED' : `locks ${fmtDeadline(deadline)} (NED–JPN kickoff)`}</p>
     ${scorerBody}
-  </section>${scoreSection}`;
+  </section>
+  ${scorerRaceCard()}${scoreSection}`;
+}
+
+// Live top-5 scorer board (display only) — counts from ESPN, see fetchTopScorers.
+function scorerRaceCard() {
+  const race = state.scorerRace ?? [];
+  const top = race.slice(0, 5);
+  const lead = top.length ? top[0].goals : 0;
+  const body = top.length
+    ? `<div class="scorer-race">${top.map((s, i) => `
+        <div class="race-row ${s.goals === lead ? 'lead' : ''}">
+          <span class="race-rank">${i + 1}</span>
+          <span class="race-name">${esc(s.name)}</span>
+          <span class="race-goals">${s.goals} ⚽</span>
+        </div>`).join('')}</div>`
+    : `<div class="empty">No goals yet — scorers appear as matches finish.</div>`;
+  return `
+  <section class="special-card scorer-board">
+    <h2 class="group-head">⚽ TOP SCORERS</h2>
+    <p class="special-note">Live goal count · own goals & shootout penalties don't count</p>
+    ${body}
+  </section>`;
 }
 
 function scoringLegend() {
@@ -628,7 +655,9 @@ async function saveName() {
   try {
     const claimed = await claimPlayer(v, pin);
     if (!claimed) {
-      err.textContent = 'Wrong PIN — this name is already taken.';
+      // Registration is frozen, so null means either a wrong PIN on an existing
+      // name or a name that was never registered — be honest about both.
+      err.textContent = 'Wrong PIN, or this name isn’t in the game. New players are closed — ask Márk to add you.';
       err.hidden = false;
       return;
     }
@@ -842,14 +871,17 @@ async function boot() {
   } catch (e) { console.warn(e); }
   refreshScores(state.matches).then(() => { state.scoresLoaded = true; render(); });
   render();
+  // Top-scorer board loads in the background (cached per match) and shows when ready.
+  fetchTopScorers().then(race => { state.scorerRace = race; render(); }).catch(e => console.warn('scorers', e));
   setInterval(async () => {
     try {
-      const [votes, specials, guesses] = await Promise.all([
-        fetchVotes(), fetchSpecials(), fetchGuesses(), refreshScores(state.matches),
+      const [votes, specials, guesses, , race] = await Promise.all([
+        fetchVotes(), fetchSpecials(), fetchGuesses(), refreshScores(state.matches), fetchTopScorers(),
       ]);
       state.votes = votes;
       state.specials = specials;
       state.guesses = guesses;
+      if (race) state.scorerRace = race;
       render();
     } catch (e) { console.warn('refresh failed', e); }
   }, CONFIG.REFRESH_MS);

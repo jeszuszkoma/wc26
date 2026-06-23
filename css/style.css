@@ -285,6 +285,22 @@ nav { display: flex; gap: 6px; margin-top: 10px; }
 .special-row.won .sp-pick { color: var(--hit); font-weight: 700; }
 .sp-player { color: var(--text-dim); }
 
+/* live top-scorer board */
+.scorer-race { display: flex; flex-direction: column; gap: 4px; }
+.race-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 10px; border: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 0.95rem;
+}
+.race-rank {
+  font-family: 'Orbitron', sans-serif; font-weight: 700; color: var(--text-dim);
+  min-width: 1.4em; text-align: center;
+}
+.race-name { flex: 1; }
+.race-goals { font-family: 'Orbitron', sans-serif; font-weight: 700; color: #fff; }
+.race-row.lead { border-color: var(--cyan); box-shadow: 0 0 12px var(--cyan-dim); }
+.race-row.lead .race-rank, .race-row.lead .race-goals { color: var(--cyan); }
+
 .fs-row { display: flex; gap: 8px; }
 #fs-input {
   flex: 1; padding: 10px 12px; font-family: 'Rajdhani', sans-serif;

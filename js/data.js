@@ -138,6 +138,81 @@ export async function refreshScores(matches) {
   return updated;
 }
 
+/* ---- Gólkirály race: tournament top-scorer tally from ESPN summaries ---- */
+
+const ESPN_SUMMARY =
+  'https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/summary';
+const LS_SCORER_CACHE = 'wc26.scorerCache'; // { "<eventId>": ["Scorer", ...] }
+
+// ESPN feeds occasionally contain raw control characters that break JSON.parse.
+// Strip the whole C0 range incl. TAB/LF/CR - illegal inside JSON string literals
+// (the real failure mode), harmless to blank out between tokens.
+async function espnJson(url) {
+  const txt = await fetch(url).then(r => r.text());
+  return JSON.parse(txt.replace(/[\u0000-\u001F]/g, ' '));
+}
+
+function loadScorerCache() {
+  try { return JSON.parse(localStorage.getItem(LS_SCORER_CACHE) || '{}'); }
+  catch { return {}; }
+}
+
+// Scoreboard is chunked because ESPN caps a reply at ~100 events. A chunk whose
+// window is entirely before today is immutable — fetch its finished-id set once
+// per session and reuse it, so the 60s refresh doesn't refetch old chunks.
+const SCOREBOARD_CHUNKS = ['20260611-20260628', '20260628-20260720'];
+const pastChunkIds = new Map(); // chunk range -> Set(finished event ids)
+
+// -> [{ name, goals }] sorted desc. Goal scorers from ESPN goal events across
+// every finished match; own goals and shootout penalties excluded. Each match
+// summary is cached (localStorage) and fetched once — only newly-finished
+// matches hit the network on later refreshes.
+export async function fetchTopScorers() {
+  const cache = loadScorerCache();
+  const today = new Date().toISOString().slice(0, 10).replaceAll('-', '');
+  const ids = new Set();
+  for (const range of SCOREBOARD_CHUNKS) {
+    const past = range.split('-')[1] < today; // window fully before today = immutable
+    if (past && pastChunkIds.has(range)) {
+      for (const id of pastChunkIds.get(range)) ids.add(id);
+      continue;
+    }
+    try {
+      const sb = await espnJson(`${ESPN_URL}?dates=${range}`);
+      const set = new Set();
+      for (const e of sb.events ?? []) {
+        if (e?.status?.type?.state === 'post') set.add(e.id);
+      }
+      if (past) pastChunkIds.set(range, set); // memoize immutable chunk
+      for (const id of set) ids.add(id);
+    } catch (e) { console.warn('scorer scoreboard chunk failed', range, e); }
+  }
+  // Fetch summaries for finished matches not yet cached. Empty entries are
+  // retried — a summary can be momentarily goalless right at the final whistle.
+  const missing = [...ids].filter(id => !cache[id] || cache[id].length === 0);
+  await Promise.all(missing.map(async id => {
+    try {
+      const s = await espnJson(`${ESPN_SUMMARY}?event=${id}`);
+      const names = [];
+      for (const k of s.keyEvents ?? []) {
+        if (!k.scoringPlay || k.shootout) continue;      // exclude shootout pens
+        if ((k.type?.text ?? '') === 'Own Goal') continue; // exclude own goals
+        const nm = k.participants?.[0]?.athlete?.displayName; // [0] = scorer
+        if (nm) names.push(nm);
+      }
+      cache[id] = names;
+    } catch (e) { console.warn('summary fetch failed', id, e); }
+  }));
+  try { localStorage.setItem(LS_SCORER_CACHE, JSON.stringify(cache)); } catch (e) { /* quota */ }
+  // Tally only the matches currently seen as finished.
+  const tally = new Map();
+  for (const id of ids) for (const nm of cache[id] ?? []) {
+    tally.set(nm, (tally.get(nm) ?? 0) + 1);
+  }
+  return [...tally].map(([name, goals]) => ({ name, goals }))
+    .sort((a, b) => b.goals - a.goals || a.name.localeCompare(b.name));
+}
+
 function mergeOpenfootball(matches, fresh) {
   let changed = false;
   assignNums(fresh);
