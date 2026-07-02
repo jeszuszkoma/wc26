@@ -65,10 +65,11 @@ export function goals(match) {
 }
 
 // Regular-time (90') score only — EXACT guesses judge on this, betting style.
-// openfootball keeps ft = 90' even when et/p exist.
+// openfootball keeps ft = 90' even when et/p exist. ftIsTotal means the feed
+// only gave us the 120' total — real 90' split unknown yet, so judge nothing.
 export function goals90(match) {
   const s = match.score;
-  if (!s?.ft) return null;
+  if (!s?.ft || s.ftIsTotal) return null;
   return { home: s.ft[0], away: s.ft[1] };
 }
 
@@ -317,12 +318,18 @@ function mergeEspn(matches, espn) {
     if (!Number.isFinite(h) || !Number.isFinite(a)) continue;
     const score = { ft: [h, a] };
     if ((comp.status?.period ?? 0) > 2) {
-      // Extra time: keep ft = 90' score (sum of periods 1–2) when ESPN
-      // provides linescores; openfootball corrects it later either way.
+      // Extra time: ft must stay the 90' score. ESPN's scoreboard often omits
+      // linescores on finished matches, so prefer them when present, else keep
+      // openfootball's 90' split (merged just before us — never clobber it),
+      // else flag ft as a 120' total so goals90()/EXACT wait for the real split.
       const reg = c => (c.linescores ?? []).slice(0, 2)
         .reduce((s, l) => s + Number(l.value ?? 0), 0);
       if (hc.linescores?.length >= 2 && ac.linescores?.length >= 2) {
         score.ft = [reg(hc), reg(ac)];
+      } else if (m.score?.et && m.score?.ft) {
+        score.ft = m.score.ft;
+      } else {
+        score.ftIsTotal = true;
       }
       score.et = [h, a]; // periods 3+4 = extra time, et = 120' total
     }
